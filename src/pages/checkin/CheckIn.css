@@ -1,0 +1,907 @@
+/* CheckIn.css */
+:root {
+  --color-primary: #002147;
+  --color-on-primary: #FFFFFF;
+  --color-background: #F5F7FA;
+  --color-surface: #FFFFFF;
+  --color-surface-low: #F8F9FC;
+  --color-surface-container: #F0F2F5;
+  --color-surface-high: #EBF0F5;
+  --color-surface-highest: #E1E8F0;
+  --color-on-surface: #1A1D23;
+  --color-on-surface-variant: #5F6368;
+  --color-outline: #BDC1C6;
+  --color-outline-variant: #DDE1E6;
+  --color-error: #D93025;
+  --color-error-container: #FCE8E6;
+  --color-success: #34A853;
+  
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 20px;
+  --space-6: 24px;
+  --space-8: 32px;
+  
+  --radius-md: 8px;
+  --radius-lg: 12px;
+  --radius-full: 50%;
+  
+  --transition-fast: 0.2s ease;
+  
+  --shadow-card: 0 2px 8px rgba(0,0,0,0.08);
+  --shadow-hover: 0 8px 24px rgba(0,0,0,0.12);
+}
+
+/* Page Layout */
+.ci-page {
+  background: linear-gradient(135deg, #F5F7FA 0%, #EBF0F5 100%);
+  padding-top: 0;
+  min-height: 100vh;
+  background: linear-gradient(135deg, #F5F7FA 0%, #EBF0F5 100%);
+  display: flex;
+  flex-direction: column;
+}
+
+/* Navigation */
+.ci-nav {
+  background: linear-gradient(135deg, var(--color-primary) 0%, #003366 100%);
+  position: sticky;
+  padding-top: env(safe-area-inset-top); 
+  top: 0;
+  z-index: 100;
+  backdrop-filter: blur(10px);
+}
+
+.ci-nav-inner {
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 0 var(--space-6);
+  height: 64px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.ci-brand {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.ci-brand-icon {
+  font-size: 24px;
+  color: var(--color-on-primary);
+  filter: drop-shadow(0 2px 4px rgba(0,0,0,0.2));
+}
+
+.ci-brand-name {
+  font-size: 20px;
+  font-weight: 700;
+  color: var(--color-on-primary);
+  letter-spacing: -0.02em;
+}
+
+.ci-nav-bell {
+  position: relative;
+  color: var(--color-on-primary);
+  opacity: 0.9;
+  padding: var(--space-2);
+  border-radius: var(--radius-md);
+  transition: all var(--transition-fast);
+  display: flex;
+  align-items: center;
+  background: transparent;
+  border: none;
+  cursor: pointer;
+}
+
+.ci-nav-bell:hover {
+  opacity: 1;
+  background: rgba(255, 255, 255, 0.1);
+}
+
+.ci-notification-dot {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  width: 8px;
+  height: 8px;
+  border-radius: var(--radius-full);
+  background: var(--color-error);
+  border: 2px solid var(--color-primary);
+}
+
+/* Main Body */
+.ci-body {
+  flex: 1;
+  max-width: 1200px;
+  margin: 0 auto;
+  width: 100%;
+  padding: var(--space-8) var(--space-6);
+  display: grid;
+  grid-template-columns: 1fr 380px;
+  gap: var(--space-8);
+  align-items: start;
+}
+
+/* Left Column */
+.ci-left {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-5);
+}
+
+.ci-hero {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  margin-bottom: var(--space-2);
+}
+
+.ci-title {
+  font-size: 36px;
+  font-weight: 700;
+  line-height: 44px;
+  color: var(--color-on-surface);
+  letter-spacing: -0.02em;
+}
+
+.ci-title-highlight {
+  background: linear-gradient(135deg, var(--color-primary) 0%, #003366 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+.ci-subtitle {
+  font-size: 16px;
+  color: var(--color-on-surface-variant);
+  line-height: 1.6;
+}
+
+/* Cards */
+.ci-card {
+  background: var(--color-surface);
+  border-radius: var(--radius-lg);
+  padding: var(--space-6);
+  box-shadow: var(--shadow-card);
+  border: 1px solid var(--color-outline-variant);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+  transition: all var(--transition-fast);
+}
+
+.ci-card:hover {
+  box-shadow: var(--shadow-hover);
+}
+
+.ci-card-head {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding-bottom: var(--space-3);
+  border-bottom: 1px solid var(--color-surface-container);
+}
+
+.ci-card-icon {
+  color: var(--color-primary);
+  flex-shrink: 0;
+}
+
+.ci-card-title {
+  font-size: 16px;
+  font-weight: 600;
+  color: var(--color-on-surface);
+}
+
+/* Form Fields */
+.ci-field {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+}
+
+.ci-label {
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--color-on-surface);
+}
+
+.ci-req {
+  color: var(--color-error);
+  font-weight: 700;
+}
+
+.ci-opt {
+  font-weight: 400;
+  font-size: 12px;
+  color: var(--color-on-surface-variant);
+}
+
+.ci-input {
+  width: 100%;
+  padding: 14px var(--space-4);
+  border: 2px solid var(--color-outline-variant);
+  border-radius: var(--radius-md);
+  font-size: 15px;
+  color: var(--color-on-surface);
+  background: var(--color-surface);
+  outline: none;
+  transition: all var(--transition-fast);
+  box-sizing: border-box;
+}
+
+.ci-input::placeholder {
+  color: var(--color-outline);
+}
+
+.ci-input:focus {
+  border-color: var(--color-primary);
+  box-shadow: 0 0 0 4px rgba(0, 33, 71, 0.1);
+}
+
+.ci-input-wrap {
+  position: relative;
+}
+
+.ci-input--pre {
+  padding-left: 46px;
+}
+
+.ci-input-pre-icon {
+  position: absolute;
+  left: var(--space-3);
+  top: 50%;
+  transform: translateY(-50%);
+  color: var(--color-outline);
+  pointer-events: none;
+  display: flex;
+  transition: color var(--transition-fast);
+}
+
+.ci-input:focus ~ .ci-input-pre-icon {
+  color: var(--color-primary);
+}
+
+.ci-hint {
+  font-size: 12px;
+  color: var(--color-on-surface-variant);
+  margin-top: var(--space-1);
+}
+
+/* Department Grid */
+.ci-dept-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: var(--space-3);
+}
+
+.ci-dept-card {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-2);
+  padding: var(--space-5) var(--space-3);
+  border: 2px solid var(--color-outline-variant);
+  border-radius: var(--radius-lg);
+  background: var(--color-surface-low);
+  text-align: center;
+  cursor: pointer;
+  min-height: 130px;
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  overflow: hidden;
+}
+
+.ci-dept-card:hover {
+  border-color: var(--color-primary);
+  background: var(--color-surface-container);
+  box-shadow: var(--shadow-hover);
+}
+
+.ci-dept-card--active {
+  border-color: var(--color-primary);
+  background: linear-gradient(135deg, #F0F4F8 0%, #E1E8F0 100%);
+  box-shadow: 0 0 0 4px rgba(0, 33, 71, 0.1);
+}
+
+.ci-dept-icon-wrap {
+  width: 56px;
+  height: 56px;
+  border-radius: var(--radius-lg);
+  background: var(--color-surface-container);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.ci-dept-card--active .ci-dept-icon-wrap {
+  background: var(--color-primary);
+  box-shadow: 0 4px 12px rgba(0, 33, 71, 0.3);
+}
+
+.ci-dept-emoji {
+  font-size: 28px;
+  transition: transform 0.3s ease;
+}
+
+.ci-dept-card:hover .ci-dept-emoji {
+  transform: scale(1.2);
+}
+
+.ci-dept-name {
+  font-size: 16px;
+  font-weight: 600;
+  color: var(--color-on-surface);
+}
+
+.ci-dept-sub {
+  font-size: 12px;
+  color: var(--color-on-surface-variant);
+}
+
+.ci-dept-check {
+  position: absolute;
+  top: var(--space-2);
+  right: var(--space-2);
+  width: 24px;
+  height: 24px;
+  border-radius: var(--radius-full);
+  background: var(--color-primary);
+  color: var(--color-on-primary);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 2px 8px rgba(0, 33, 71, 0.3);
+}
+
+/* Error Message */
+.ci-error {
+  font-size: 14px;
+  color: var(--color-error);
+  padding: var(--space-3) var(--space-4);
+  background: var(--color-error-container);
+  border-radius: var(--radius-md);
+  border-left: 4px solid var(--color-error);
+  font-weight: 500;
+}
+
+/* Submit Button */
+.ci-submit {
+  width: 100%;
+  padding: 16px var(--space-6);
+  background: linear-gradient(135deg, var(--color-primary) 0%, #003366 100%);
+  color: var(--color-on-primary);
+  border-radius: var(--radius-md);
+  font-size: 16px;
+  font-weight: 600;
+  min-height: 56px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-2);
+  border: none;
+  cursor: pointer;
+  position: relative;
+  overflow: hidden;
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.ci-submit::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: -100%;
+  width: 100%;
+  height: 100%;
+  background: linear-gradient(90deg, transparent, rgba(255,255,255,0.2), transparent);
+  transition: left 0.5s;
+}
+
+.ci-submit:hover::before {
+  left: 100%;
+}
+
+.ci-submit:hover:not(:disabled) {
+  box-shadow: 0 10px 25px rgba(0, 33, 71, 0.3);
+}
+
+.ci-submit:active:not(:disabled) {
+  transform: scale(0.98);
+}
+
+.ci-submit:disabled {
+  opacity: 0.7;
+  cursor: not-allowed;
+}
+
+.ci-arrow {
+  font-size: 20px;
+  transition: transform 0.3s ease;
+}
+
+.ci-submit:hover .ci-arrow {
+  transform: translateX(4px);
+}
+
+.ci-submit-loading {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.ci-dots {
+  display: inline-block;
+  width: 24px;
+  text-align: left;
+}
+
+/* Right Column */
+.ci-right {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+  position: sticky;
+  top: 80px;
+}
+
+.ci-status-card {
+  background: linear-gradient(135deg, var(--color-primary) 0%, #003366 100%);
+  border-radius: var(--radius-lg);
+  padding: var(--space-6);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+  box-shadow: 0 10px 30px rgba(0, 33, 71, 0.3);
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.ci-status-top {
+  display: flex;
+  align-items: center;
+  gap: var(--space-4);
+}
+
+.ci-status-label {
+  font-size: 11px;
+  color: rgba(255, 255, 255, 0.7);
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  margin-bottom: 2px;
+}
+
+.ci-status-time {
+  font-size: 32px;
+  font-weight: 700;
+  color: var(--color-on-primary);
+  line-height: 1;
+}
+
+.ci-status-divider {
+  height: 1px;
+  background: rgba(255, 255, 255, 0.15);
+}
+
+.ci-status-live-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.ci-status-subtitle {
+  font-size: 11px;
+  color: rgba(255, 255, 255, 0.5);
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+}
+
+.ci-live-badge {
+  display: flex;
+  align-items: center;
+  gap: var(--space-1);
+  font-size: 12px;
+  color: var(--color-success);
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  background: rgba(52, 168, 83, 0.1);
+  padding: 4px 8px;
+  border-radius: 4px;
+}
+
+.ci-live-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: var(--radius-full);
+  background: var(--color-success);
+  box-shadow: 0 0 8px rgba(52, 168, 83, 0.5);
+}
+
+.ci-status-items {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.ci-status-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: var(--space-2) 0;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.ci-status-dept {
+  font-size: 14px;
+  color: rgba(255, 255, 255, 0.8);
+}
+
+.ci-status-count {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--color-on-primary);
+}
+
+.ci-status-count--clear {
+  color: var(--color-success);
+}
+
+.ci-status-quote {
+  font-size: 13px;
+  color: rgba(255, 255, 255, 0.5);
+  font-style: italic;
+  line-height: 1.8;
+  border-left: 3px solid rgba(255, 255, 255, 0.2);
+  padding-left: var(--space-3);
+}
+
+.ci-copyright {
+  font-size: 12px;
+  color: var(--color-on-surface-variant);
+  text-align: center;
+  margin-top: var(--space-2);
+}
+
+/* Responsive Design */
+@media (max-width: 900px) {
+  .ci-body {
+    grid-template-columns: 1fr;
+    padding: var(--space-6) var(--space-4);
+    gap: var(--space-6);
+  }
+  
+  .ci-right {
+    position: static;
+  }
+  
+  .ci-title {
+    font-size: 28px;
+    line-height: 36px;
+  }
+}
+
+@media (max-width: 480px) {
+  .ci-nav-inner {
+    padding: 0 var(--space-4);
+  }
+  
+  .ci-title {
+    font-size: 24px;
+    line-height: 32px;
+  }
+  
+  .ci-dept-grid {
+    gap: var(--space-2);
+  }
+  
+  .ci-dept-card {
+    min-height: 110px;
+    padding: var(--space-3) var(--space-2);
+  }
+  
+  .ci-dept-icon-wrap {
+    width: 44px;
+    height: 44px;
+  }
+  
+  .ci-dept-emoji {
+    font-size: 24px;
+  }
+  
+  .ci-status-time {
+    font-size: 28px;
+  }
+}
+
+/* Loading shimmer effect */
+@keyframes shimmer {
+  0% {
+    background-position: -1000px 0;
+  }
+  100% {
+    background-position: 1000px 0;
+  }
+}
+
+.ci-skeleton {
+  background: linear-gradient(90deg, #f0f0f0 25%, #e0e0e0 50%, #f0f0f0 75%);
+  background-size: 1000px 100%;
+  animation: shimmer 2s infinite;
+}
+
+
+/* ============================================
+   CheckIn.css — ADDITIONS
+   Append these to the bottom of your existing
+   CheckIn.css file.
+   ============================================ */
+
+/* ----- Input error state ----- */
+.ci-input--error {
+  border-color: var(--color-error);
+  box-shadow: 0 0 0 4px rgba(217, 48, 37, 0.08);
+}
+
+.ci-field-error {
+  font-size: 12px;
+  color: var(--color-error);
+  margin-top: var(--space-1);
+  font-weight: 500;
+}
+
+/* ----- Priority toggle ----- */
+.ci-priority-toggle {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  padding: var(--space-3) var(--space-4);
+  border: 2px solid var(--color-outline-variant);
+  border-radius: var(--radius-md);
+  background: var(--color-surface-low);
+  cursor: pointer;
+  text-align: left;
+  transition: all var(--transition-fast);
+}
+
+.ci-priority-toggle:hover {
+  border-color: #f97316;
+  background: rgba(249, 115, 22, 0.04);
+}
+
+.ci-priority-toggle--active {
+  border-color: #f97316;
+  background: rgba(249, 115, 22, 0.06);
+  box-shadow: 0 0 0 4px rgba(249, 115, 22, 0.1);
+}
+
+.ci-priority-toggle-icon {
+  font-size: 22px;
+  flex-shrink: 0;
+}
+
+.ci-priority-toggle-text {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.ci-priority-toggle-label {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--color-on-surface);
+}
+
+.ci-priority-toggle-sub {
+  font-size: 12px;
+  color: var(--color-on-surface-variant);
+}
+
+.ci-priority-check {
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  border: 2px solid var(--color-outline-variant);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  transition: all var(--transition-fast);
+}
+
+.ci-priority-check--on {
+  background: #f97316;
+  border-color: #f97316;
+  color: white;
+}
+
+/* ----- Department wait time label ----- */
+.ci-dept-wait {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--color-on-surface-variant);
+  background: var(--color-surface-container);
+  padding: 2px 8px;
+  border-radius: var(--radius-full);
+  letter-spacing: 0.02em;
+}
+
+.ci-dept-wait--clear {
+  color: var(--color-success);
+  background: rgba(52, 168, 83, 0.1);
+}
+
+/* ----- Department callout (selected dept wait) ----- */
+.ci-dept-callout {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-3) var(--space-4);
+  background: rgba(0, 33, 71, 0.04);
+  border: 1px solid rgba(0, 33, 71, 0.1);
+  border-radius: var(--radius-md);
+  font-size: 13px;
+  color: var(--color-on-surface-variant);
+  line-height: 1.5;
+  overflow: hidden;
+}
+
+.ci-dept-callout svg {
+  flex-shrink: 0;
+  color: var(--color-primary);
+}
+/* ============================================
+   CheckIn.css — ADDITIONS
+   Append these to the bottom of your existing
+   CheckIn.css file.
+   ============================================ */
+
+/* ----- Input error state ----- */
+.ci-input--error {
+  border-color: var(--color-error);
+  box-shadow: 0 0 0 4px rgba(217, 48, 37, 0.08);
+}
+
+.ci-field-error {
+  font-size: 12px;
+  color: var(--color-error);
+  margin-top: var(--space-1);
+  font-weight: 500;
+}
+
+/* ----- Priority toggle ----- */
+.ci-priority-toggle {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  padding: var(--space-3) var(--space-4);
+  border: 2px solid var(--color-outline-variant);
+  border-radius: var(--radius-md);
+  background: var(--color-surface-low);
+  cursor: pointer;
+  text-align: left;
+  transition: all var(--transition-fast);
+}
+
+.ci-priority-toggle:hover {
+  border-color: #f97316;
+  background: rgba(249, 115, 22, 0.04);
+}
+
+.ci-priority-toggle--active {
+  border-color: #f97316;
+  background: rgba(249, 115, 22, 0.06);
+  box-shadow: 0 0 0 4px rgba(249, 115, 22, 0.1);
+}
+
+.ci-priority-toggle-icon {
+  font-size: 22px;
+  flex-shrink: 0;
+}
+
+.ci-priority-toggle-text {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.ci-priority-toggle-label {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--color-on-surface);
+}
+
+.ci-priority-toggle-sub {
+  font-size: 12px;
+  color: var(--color-on-surface-variant);
+}
+
+.ci-priority-check {
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  border: 2px solid var(--color-outline-variant);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  transition: all var(--transition-fast);
+}
+
+.ci-priority-check--on {
+  background: #f97316;
+  border-color: #f97316;
+  color: white;
+}
+
+/* ----- Department wait time label ----- */
+.ci-dept-wait {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--color-on-surface-variant);
+  background: var(--color-surface-container);
+  padding: 2px 8px;
+  border-radius: var(--radius-full);
+  letter-spacing: 0.02em;
+}
+
+.ci-dept-wait--clear {
+  color: var(--color-success);
+  background: rgba(52, 168, 83, 0.1);
+}
+
+/* ----- Department callout (selected dept wait) ----- */
+.ci-dept-callout {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-3) var(--space-4);
+  background: rgba(0, 33, 71, 0.04);
+  border: 1px solid rgba(0, 33, 71, 0.1);
+  border-radius: var(--radius-md);
+  font-size: 13px;
+  color: var(--color-on-surface-variant);
+  line-height: 1.5;
+  overflow: hidden;
+}
+
+.ci-dept-callout svg {
+  flex-shrink: 0;
+  color: var(--color-primary);
+}
+
+/* ----- Nav status bar color fill (mobile) ----- */
+/* Fills the area above the nav with the same dark blue on mobile browsers
+   where the status bar sits. Works alongside theme-color meta tag. */
+.ci-status-bar-fill {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: env(safe-area-inset-top, 0px);
+  background: #002147;
+  z-index: 101; /* above nav */
+}
+
+.ci-nav {
+  /* Push nav content below the status bar fill */
+  margin-top: env(safe-area-inset-top, 0px);
+}
+
+/* ----- Dept grid: 2 columns on mobile to fit 4 cards ----- */
+@media (max-width: 480px) {
+  .ci-dept-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+
+  .ci-dept-card {
+    min-height: 120px;
+  }
+}
