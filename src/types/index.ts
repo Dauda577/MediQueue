@@ -1,4 +1,6 @@
-export type Department = 'OPD' | 'Lab' | 'Pharmacy';
+// ── Enums / Unions
+
+export type Stage = 'OPD' | 'Lab' | 'Pharmacy';
 
 export type QueueStatus =
   | 'waiting'
@@ -12,13 +14,21 @@ export type PatientPriority = 'normal' | 'priority' | 'emergency';
 
 export type UserRole = 'patient' | 'staff' | 'admin';
 
-// ── Patient ──
+export type StaffRole = 'doctor' | 'nurse' | 'pharmacist' | 'lab_tech' | 'admin';
+
+
+// ── Patient 
+// Represents a full patient record as stored in the DB.
+// user_id links to Supabase auth.users (optional: patients may check in without an account).
+
 export interface Patient {
   id: string;
+  user_id?: string;           // links to auth.users if patient has an account
   full_name: string;
   phone?: string;
   token_id: string;
-  department: Department;
+  initial_department: Stage;  // where the patient first checked in
+  current_stage: Stage;       // where the patient currently is in the journey
   status: QueueStatus;
   priority: PatientPriority;
   position: number;
@@ -30,13 +40,17 @@ export interface Patient {
   created_at: string;
 }
 
-// ── Queue Entry (lighter shape for list views) ──
+
+// ── Queue Entry 
+// Lighter shape used for list views and realtime queue display.
+// Not a separate DB table — derived from Patient via query or view.
+
 export interface QueueEntry {
   id: string;
   token_id: string;
   full_name: string;
   queue_number: number;
-  department: Department;
+  current_stage: Stage;
   status: QueueStatus;
   priority: PatientPriority;
   position: number;
@@ -44,28 +58,53 @@ export interface QueueEntry {
   checked_in_at: string;
 }
 
-// ── Staff ──
+
+// ── Staff 
+// user_id is required for staff — they authenticate via Supabase Auth.
+
 export interface StaffMember {
   id: string;
+  user_id: string;            // required — links to auth.users
   name: string;
-  role: 'doctor' | 'nurse' | 'pharmacist' | 'lab_tech' | 'admin';
-  department: Department;
+  role: StaffRole;
+  department: Stage;
   station?: string;
   is_active: boolean;
 }
 
-// ── Emergency Override ──
+
+// ── Emergency Override 
+// Audit log for priority/emergency queue overrides authorized by staff.
+
 export interface OverrideLog {
   id: string;
   patient_id: string;
   patient_name: string;
-  authorized_by: string;
-  staff_id: string;
+  authorized_by: string;      // staff name for display
+  staff_id: string;           // links to StaffMember.id
   reason: string;
   created_at: string;
 }
 
-// ── Admin Stats ──
+
+// ── Call Alert 
+// Tracks when a patient was called to a station (drives Web Audio API alerts).
+// Persisted so missed calls can trigger auto re-queue logic.
+
+export interface CallAlert {
+  id: string;
+  patient_id: string;
+  queue_number: number;
+  department: Stage;
+  called_at: string;
+  acknowledged: boolean;      // true once patient responds or timeout fires
+}
+
+
+// ── Admin Stats 
+// Computed shape — NOT a Supabase table.
+// Will be derived via query or Postgres function on the backend.
+
 export interface DashboardStats {
   total_patients_today: number;
   active_queues: number;
@@ -76,7 +115,10 @@ export interface DashboardStats {
   nursing_total: number;
 }
 
-// ── Realtime Queue Update Payload ──
+
+// ── Realtime Payload 
+// Shape of Supabase realtime change events for queue updates.
+
 export interface QueueUpdatePayload {
   type: 'INSERT' | 'UPDATE' | 'DELETE';
   record: QueueEntry;
