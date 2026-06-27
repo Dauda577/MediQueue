@@ -1,7 +1,10 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
+import { useRealtimeQueue } from '../../hooks/useRealtimeQueue'
+import { queueService } from '../../services/queueService'
 import './CheckIn.css';
+
 
 
 
@@ -114,37 +117,26 @@ export default function CheckIn() {
   const [fieldErrors, setFieldErrors] = useState<{ name?: string; phone?: string }>({});
   const [focusedField, setFocusedField] = useState<string | null>(null);
 
-  // ── Live queue stats (replace useState initialiser with Supabase fetch + realtime) ──
   const [deptStats, setDeptStats] = useState<DepartmentStats>(MOCK_DEPT_STATS);
 
-  useEffect(() => {
-    // TODO: fetch real counts on mount:
-    //   const { data } = await supabase
-    //     .from('queue_stats')   // or a view that counts per department
-    //     .select('department, waiting, avg_wait_mins');
-    //   setDeptStats(buildStatsMap(data));
+  const fetchDeptStats = useCallback(async () => {
+    const entries = await Promise.all(
+      DEPARTMENTS.map(async (dept) => {
+        const queue = await queueService.getQueueByDepartment(dept.id)
+        return { id: dept.id, waiting: queue.length }
+      })
+    )
+    setDeptStats(prev => {
+      const updated = { ...prev }
+      for (const { id, waiting } of entries) {
+        const avgMins = DEPARTMENTS.find(d => d.id === id)?.avgMinsPerPatient ?? 4
+        updated[id] = { waiting, avgWaitMins: waiting * avgMins }
+      }
+      return updated
+    })
+  }, [])
 
-    // TODO: subscribe to realtime updates so counts stay live:
-    //   const channel = supabase
-    //     .channel('queue_stats')
-    //     .on('postgres_changes', { event: '*', schema: 'public', table: 'queue_entries' },
-    //       () => refetchStats())
-    //     .subscribe();
-    //   return () => supabase.removeChannel(channel);
-
-    // Mock: simulate one patient joining OPD every 8s
-    const interval = setInterval(() => {
-      setDeptStats(prev => ({
-        ...prev,
-        OPD: {
-          waiting: prev.OPD.waiting + 1,
-          avgWaitMins: Math.round((prev.OPD.waiting + 1) * 4),
-        },
-      }));
-    }, 8000);
-
-    return () => clearInterval(interval);
-  }, []);
+  useRealtimeQueue({ onUpdate: fetchDeptStats })
 
   // Overall avg from live stats
   const overallAvgWait = Math.round(

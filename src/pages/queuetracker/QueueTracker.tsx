@@ -1,5 +1,6 @@
 import { useLocation, useParams, useNavigate } from 'react-router-dom';
 import { useEffect, useState, useRef, useCallback } from 'react';
+import { useRealtimeAlerts } from '../../hooks/useRealtimeAlerts'
 import './QueueTracker.css';
 
 // ─── Mock data (swap these fetches/subscriptions for Supabase later) ──────────
@@ -115,7 +116,13 @@ export default function QueueTracker() {
     }
   }, [queueData.position, queueData.isPriority]);
 
- 
+  useRealtimeAlerts({
+    onNewAlert: (alert) => {
+      playAlert('notify')
+      showNotification(`Patient ${alert.queue_number} called to ${alert.department}`, 'info')
+    }
+  })
+
   const showNotification = useCallback((text, type = 'info') => {
     setNotification({ text, type });
     setTimeout(() => setNotification(null), 6000);
