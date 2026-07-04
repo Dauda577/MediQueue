@@ -25,12 +25,17 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     });
 
     // Listen for auth state changes (handles invite links too)
-    const { data: { subscription } } = onAuthStateChange((staffMember) => {
+    const authSubscription = onAuthStateChange((staffMember) => {
       setStaff(staffMember);
       setLoading(false);
     });
 
-    return () => subscription.unsubscribe();
+    return () => {
+      if (authSubscription && typeof authSubscription === 'object' && 'subscription' in authSubscription) {
+        const subscription = authSubscription.subscription as { unsubscribe?: () => void } | undefined;
+        subscription?.unsubscribe?.();
+      }
+    };
   }, []);
 
   return (

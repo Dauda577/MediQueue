@@ -36,15 +36,30 @@ const STAGES = [
   { key: 'done',         label: 'Done' },
 ];
 
-function stageIndex(key) {
+type Notification = {
+  text: string;
+  type: 'info' | 'success' | 'warning';
+};
+
+function stageIndex(key: string) {
   return STAGES.findIndex(s => s.key === key);
+}
+
+function deriveWaitMins(position: number, avgMins: number) {
+  return Math.max(1, (position - 1) * avgMins);
+}
+
+function formatTime(date: Date) {
+  return date.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' });
 }
 
 // ─── Audio alert (Web Audio API) ──────────────────────────────────────────────
 
 function playAlert(type = 'notify') {
   try {
-    const ctx = new (window.AudioContext || window.webkitAudioContext)();
+    const AudioContextCtor = (window.AudioContext ?? (window as any).webkitAudioContext) as typeof AudioContext | undefined;
+    if (!AudioContextCtor) return;
+    const ctx = new AudioContextCtor();
     const notes = type === 'urgent'
       ? [880, 1100, 880]
       : [660, 880];
@@ -66,16 +81,6 @@ function playAlert(type = 'notify') {
   }
 }
 
-// ─── Helpers ──────────────────────────────────────────────────────────────────
-
-function deriveWaitMins(position, avgMins) {
-  return Math.max(1, (position - 1) * avgMins);
-}
-
-function formatTime(date) {
-  return date.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' });
-}
-
 // ─── Component ────────────────────────────────────────────────────────────────
 
 export default function QueueTracker() {
@@ -94,12 +99,11 @@ export default function QueueTracker() {
   const [stats]         = useState(MOCK_QUEUE_STATS);
   const [loading, setLoading]     = useState(false);
   const [lastUpdated, setLastUpdated] = useState(new Date());
-  const [notification, setNotification] = useState(null); 
+  const [notification, setNotification] = useState<Notification | null>(null); 
   const [helpOpen, setHelpOpen]   = useState(false);
 
   const alertFiredRef = useRef(false); // prevent repeat audio for same trigger
 
- 
   const currentStageIdx = stageIndex(queueData.stage);
   const waitMins = deriveWaitMins(queueData.position, queueData.avgMinsPerPatient);
   const ringOffset = 201 - (201 * (queueData.total - queueData.position) / queueData.total);
@@ -123,7 +127,7 @@ export default function QueueTracker() {
     }
   })
 
-  const showNotification = useCallback((text, type = 'info') => {
+  const showNotification = useCallback((text: string, type: Notification['type'] = 'info') => {
     setNotification({ text, type });
     setTimeout(() => setNotification(null), 6000);
   }, []);

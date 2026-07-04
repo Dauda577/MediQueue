@@ -17,7 +17,7 @@ export function useRealtimeAlerts({ onNewAlert }: UseRealtimeAlertsOptions) {
           schema: 'public',
           table: 'call_alerts',
         },
-        (payload) => {
+        (payload: { new: CallAlert }) => {
           onNewAlert(payload.new as CallAlert)
         }
       )

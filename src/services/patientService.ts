@@ -61,7 +61,7 @@ export async function getDepartmentStats() {
     Maternity: { waiting: 0 },
   };
 
-  data.forEach((row) => {
+  data.forEach((row: { current_stage: string }) => {
     const dept = row.current_stage as keyof typeof stats;
     if (stats[dept] !== undefined) stats[dept].waiting++;
   });

@@ -37,7 +37,7 @@ export async function getCurrentStaff(): Promise<StaffMember | null> {
 // ── Listen for auth state changes
 // Call once at app startup — fires on sign in, sign out, and invite link clicks
 export function onAuthStateChange(callback: (staff: StaffMember | null) => void) {
-  return supabase.auth.onAuthStateChange(async (event, session) => {
+  return supabase.auth.onAuthStateChange(async (_event: unknown, session: { user?: { id: string } } | null) => {
     if (!session) {
       callback(null);
       return;

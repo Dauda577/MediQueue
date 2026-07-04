@@ -115,7 +115,6 @@ export default function CheckIn() {
   const [loading, setLoading]         = useState(false);
   const [error, setError]             = useState('');
   const [fieldErrors, setFieldErrors] = useState<{ name?: string; phone?: string }>({});
-  const [focusedField, setFocusedField] = useState<string | null>(null);
 
   const [deptStats, setDeptStats] = useState<DepartmentStats>(MOCK_DEPT_STATS);
 
@@ -267,8 +266,6 @@ export default function CheckIn() {
                 placeholder="Enter your full legal name"
                 value={fullName}
                 onChange={e => { setFullName(e.target.value); setFieldErrors(p => ({ ...p, name: undefined })); }}
-                onFocus={() => setFocusedField('name')}
-                onBlur={() => setFocusedField(null)}
               />
               <AnimatePresence>
                 {fieldErrors.name && (
@@ -295,8 +292,6 @@ export default function CheckIn() {
                   placeholder="+233 XX XXX XXXX"
                   value={phone}
                   onChange={e => { setPhone(e.target.value); setFieldErrors(p => ({ ...p, phone: undefined })); }}
-                  onFocus={() => setFocusedField('phone')}
-                  onBlur={() => setFocusedField(null)}
                 />
               </div>
               <AnimatePresence>

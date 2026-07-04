@@ -28,6 +28,7 @@ export const mockPatients: Patient[] = [
     checked_in_at: new Date(Date.now() - 10 * 60000).toISOString(), // 10 mins ago
     called_at: new Date(Date.now() - 5 * 60000).toISOString(), // 5 mins ago
     created_at: new Date().toISOString(),
+    done_at: null
   },
   {
     id: 'patient_2',
@@ -43,6 +44,9 @@ export const mockPatients: Patient[] = [
     queue_number: 2,
     checked_in_at: new Date(Date.now() - 5 * 60000).toISOString(), // 5 mins ago
     created_at: new Date().toISOString(),
+    assigned_station: null,
+    called_at: null,
+    done_at: null
   },
   {
     id: 'patient_3',
@@ -57,6 +61,10 @@ export const mockPatients: Patient[] = [
     queue_number: 101,
     checked_in_at: new Date(Date.now() - 20 * 60000).toISOString(),
     created_at: new Date().toISOString(),
+    assigned_station: null,
+    called_at: null,
+    done_at: null,
+    user_id: null
   },
   {
     id: 'patient_4',
@@ -71,6 +79,10 @@ export const mockPatients: Patient[] = [
     queue_number: 201,
     checked_in_at: new Date(Date.now() - 2 * 60000).toISOString(),
     created_at: new Date().toISOString(),
+    assigned_station: null,
+    called_at: null,
+    done_at: null,
+    user_id: null
   },
 ]
 
@@ -128,6 +140,7 @@ export const mockStaffMembers: StaffMember[] = [
     department: 'OPD',
     station: 'Station_A',
     is_active: true,
+    created_at: ''
   },
   {
     id: 'staff_2',
@@ -137,6 +150,7 @@ export const mockStaffMembers: StaffMember[] = [
     department: 'OPD',
     station: 'Station_B',
     is_active: true,
+    created_at: ''
   },
   {
     id: 'staff_3',
@@ -146,6 +160,7 @@ export const mockStaffMembers: StaffMember[] = [
     department: 'Lab',
     station: 'Lab_Station_1',
     is_active: true,
+    created_at: ''
   },
   {
     id: 'staff_4',
@@ -155,6 +170,7 @@ export const mockStaffMembers: StaffMember[] = [
     department: 'Pharmacy',
     station: 'Pharmacy_Counter_1',
     is_active: true,
+    created_at: ''
   },
   {
     id: 'staff_5',
@@ -163,6 +179,8 @@ export const mockStaffMembers: StaffMember[] = [
     role: 'admin',
     department: 'OPD',
     is_active: true,
+    created_at: '',
+    station: null
   },
 ]
 

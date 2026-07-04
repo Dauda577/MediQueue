@@ -17,17 +17,6 @@ function ProtectedRoute({ children }: { children: React.ReactNode }) {
   return <>{children}</>;
 }
 
-// Redirects to correct page based on staff role after login
-function RoleRedirect() {
-  const { staff, loading } = useAuth();
-
-  if (loading) return <div className="min-h-screen flex items-center justify-center text-gray-500">Loading...</div>;
-  if (!staff) return <Navigate to="/login" replace />;
-
-  if (staff.role === 'admin') return <Navigate to="/admin" replace />;
-  return <Navigate to="/staff" replace />;
-}
-
 export default function App() {
   return (
     <BrowserRouter>

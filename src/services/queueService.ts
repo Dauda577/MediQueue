@@ -32,7 +32,7 @@ export const queueService = {
       .from('patients')
       .select('current_stage')
     if (error) throw error
-    const unique = [...new Set(data.map(r => r.current_stage))]
+    const unique = [...new Set(data.map((r: { current_stage: string }) => r.current_stage))]
     return unique
   },
 
@@ -123,7 +123,7 @@ export const queueService = {
 
     if (error) throw error
 
-    return data.map(p => ({
+    return data.map((p: QueueEntry) => ({
       ...p,
       wait_time_minutes: p.position * 4,
     })) as QueueEntry[]
@@ -326,17 +326,17 @@ export const queueService = {
       supabase.from('staff_members').select('role, is_active'),
     ])
 
-    const activeQueues = new Set(waiting?.map(p => p.current_stage) ?? []).size
-    const doctors = activeStaff?.filter(s => s.role === 'doctor') ?? []
-    const nurses = activeStaff?.filter(s => s.role === 'nurse') ?? []
+    const activeQueues = new Set(waiting?.map((p: { current_stage: string }) => p.current_stage) ?? []).size
+    const doctors = activeStaff?.filter((s: { role: string }) => s.role === 'doctor') ?? []
+    const nurses = activeStaff?.filter((s: { role: string }) => s.role === 'nurse') ?? []
 
     return {
       total_patients_today: totalToday ?? 0,
       active_queues: activeQueues,
       avg_wait_minutes: 0,
-      physicians_active: doctors.filter(d => d.is_active).length,
+      physicians_active: doctors.filter((d: { is_active: boolean }) => d.is_active).length,
       physicians_total: doctors.length,
-      nursing_active: nurses.filter(n => n.is_active).length,
+      nursing_active: nurses.filter((n: { is_active: boolean }) => n.is_active).length,
       nursing_total: nurses.length,
     }
   },
