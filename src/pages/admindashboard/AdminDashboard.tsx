@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react'
 import { queueService } from '../../services/queueService'
-import type { QueueEntry } from '../../types'
+import { supabase } from '../../lib/supabase'
+import type { QueueEntry, StaffRole, Stage } from '../../types'
 import './AdminDashboard.css'
 
 export default function AdminDashboard() {
@@ -9,6 +10,48 @@ export default function AdminDashboard() {
   const [selectedDept, setSelectedDept] = useState<'OPD' | 'Lab' | 'Pharmacy'>('OPD')
   const [currentServing, setCurrentServing] = useState<QueueEntry | null>(null)
   const [stats, setStats] = useState({ served: 0, avgWait: 0, doctorsOnline: 0 })
+
+  // Invite staff form
+  const [showInvite, setShowInvite] = useState(false)
+  const [inviteEmail, setInviteEmail] = useState('')
+  const [inviteName, setInviteName] = useState('')
+  const [inviteRole, setInviteRole] = useState<StaffRole>('nurse')
+  const [inviteDept, setInviteDept] = useState<Stage>('OPD')
+  const [inviteLoading, setInviteLoading] = useState(false)
+  const [inviteError, setInviteError] = useState<string | null>(null)
+  const [inviteSuccess, setInviteSuccess] = useState<string | null>(null)
+
+  async function handleInviteStaff() {
+    setInviteError(null)
+    setInviteSuccess(null)
+    setInviteLoading(true)
+    try {
+      const { data: sessionData } = await supabase.auth.getSession()
+      const token = sessionData.session?.access_token
+      if (!token) throw new Error('Not authenticated')
+
+      const { data, error } = await supabase.functions.invoke('invite-staff', {
+        body: {
+          email: inviteEmail,
+          name: inviteName,
+          role: inviteRole,
+          department: inviteDept,
+        },
+        headers: { Authorization: `Bearer ${token}` },
+      })
+
+      if (error) throw error
+      if (data?.error) throw new Error(data.error)
+
+      setInviteSuccess(`Invite sent to ${inviteEmail}`)
+      setInviteEmail('')
+      setInviteName('')
+    } catch (err: any) {
+      setInviteError(err.message || 'Failed to send invite')
+    } finally {
+      setInviteLoading(false)
+    }
+  }
 
   // Fetch queue on mount and when department changes
   useEffect(() => {
@@ -292,10 +335,89 @@ export default function AdminDashboard() {
             <button className="ad-btn ad-btn-primary" style={{ width: '100%', justifyContent: 'center' }}>
               📊 View Reports
             </button>
-            <button className="ad-btn ad-btn-ghost" style={{ width: '100%', justifyContent: 'center', marginTop: '8px' }}>
-              ⚙️ Settings
+            <button
+              onClick={() => setShowInvite((v) => !v)}
+              className="ad-btn ad-btn-ghost"
+              style={{ width: '100%', justifyContent: 'center', marginTop: '8px' }}
+            >
+              ✉️ Invite Staff
             </button>
           </div>
+
+          {/* Invite Staff Form */}
+          {showInvite && (
+            <div className="ad-sidebar-card">
+              <h3 className="ad-sidebar-title">Invite Staff Member</h3>
+
+              {inviteError && (
+                <div style={{ background: '#fef2f2', border: '1px solid #fecaca', color: '#dc2626', fontSize: '0.8125rem', padding: '0.6rem 0.8rem', borderRadius: '0.5rem', marginBottom: '0.75rem' }}>
+                  {inviteError}
+                </div>
+              )}
+              {inviteSuccess && (
+                <div style={{ background: '#f0fdf4', border: '1px solid #bbf7d0', color: '#16a34a', fontSize: '0.8125rem', padding: '0.6rem 0.8rem', borderRadius: '0.5rem', marginBottom: '0.75rem' }}>
+                  {inviteSuccess}
+                </div>
+              )}
+
+              <div style={{ marginBottom: '0.6rem' }}>
+                <input
+                  type="text"
+                  value={inviteName}
+                  onChange={(e) => setInviteName(e.target.value)}
+                  placeholder="Full name"
+                  className="ad-dept-select"
+                  style={{ width: '100%', boxSizing: 'border-box' }}
+                />
+              </div>
+              <div style={{ marginBottom: '0.6rem' }}>
+                <input
+                  type="email"
+                  value={inviteEmail}
+                  onChange={(e) => setInviteEmail(e.target.value)}
+                  placeholder="staff@hospital.com"
+                  className="ad-dept-select"
+                  style={{ width: '100%', boxSizing: 'border-box' }}
+                />
+              </div>
+              <div style={{ marginBottom: '0.6rem' }}>
+                <select
+                  value={inviteRole}
+                  onChange={(e) => setInviteRole(e.target.value as StaffRole)}
+                  className="ad-dept-select"
+                  style={{ width: '100%' }}
+                >
+                  <option value="doctor">Doctor</option>
+                  <option value="nurse">Nurse</option>
+                  <option value="pharmacist">Pharmacist</option>
+                  <option value="lab_tech">Lab Tech</option>
+                  <option value="admin">Admin</option>
+                </select>
+              </div>
+              <div style={{ marginBottom: '0.75rem' }}>
+                <select
+                  value={inviteDept}
+                  onChange={(e) => setInviteDept(e.target.value as Stage)}
+                  className="ad-dept-select"
+                  style={{ width: '100%' }}
+                >
+                  <option value="OPD">OPD</option>
+                  <option value="Lab">Lab</option>
+                  <option value="Pharmacy">Pharmacy</option>
+                  <option value="Maternity">Maternity</option>
+                </select>
+              </div>
+
+              <button
+                onClick={handleInviteStaff}
+                disabled={inviteLoading || !inviteName || !inviteEmail}
+                className="ad-btn ad-btn-primary"
+                style={{ width: '100%', justifyContent: 'center' }}
+              >
+                {inviteLoading ? 'Sending…' : 'Send Invite'}
+              </button>
+            </div>
+          )}
         </div>
       </div>
     </div>

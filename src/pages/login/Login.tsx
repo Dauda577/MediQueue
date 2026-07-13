@@ -1,5 +1,7 @@
-import { useState } from 'react';
-import { signIn } from '../../lib/auth';
+import { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
+import { signIn, getCurrentStaff } from '../../lib/auth';
+import { useAuth } from '../../context/AuthContext';
 import './Login.css';
 
 export default function Login() {
@@ -7,12 +9,26 @@ export default function Login() {
   const [password, setPassword] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+  const navigate = useNavigate();
+  const { staff } = useAuth();
+
+  // If already logged in (e.g. session restored on mount), skip the form
+  useEffect(() => {
+    if (staff) {
+      navigate(staff.role === 'admin' ? '/admin' : '/staff', { replace: true });
+    }
+  }, [staff, navigate]);
 
   async function handleLogin() {
     setError(null);
     setLoading(true);
     try {
       await signIn(email, password);
+      const staffMember = await getCurrentStaff();
+      if (!staffMember) {
+        throw new Error('No staff record found for this account.');
+      }
+      navigate(staffMember.role === 'admin' ? '/admin' : '/staff', { replace: true });
     } catch (err: any) {
       setError(err.message || 'Invalid email or password');
     } finally {
@@ -52,6 +68,9 @@ export default function Login() {
             type="password"
             value={password}
             onChange={(e) => setPassword(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter' && email && password && !loading) handleLogin();
+            }}
             placeholder="••••••••"
             className="login-input"
           />
