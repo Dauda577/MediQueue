@@ -6,6 +6,7 @@ import StaffPortal from './pages/staffportal/StaffPortal';
 import AdminDashboard from './pages/admindashboard/AdminDashboard';
 import EmergencyOverride from './pages/emergencyoverride/EmergencyOverride';
 import Login from './pages/login/Login';
+import AcceptInvite from './pages/acceptinvite/AcceptInvite';
 
 // Redirects to login if not authenticated
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
@@ -23,6 +24,7 @@ export default function App() {
       <Routes>
         {/* Public routes */}
         <Route path="/login" element={<Login />} />
+        <Route path="/accept-invite" element={<AcceptInvite />} />
         <Route path="/checkin" element={<CheckIn />} />
         <Route path="/queue/:tokenId" element={<QueueTracker />} />
 
