@@ -15,7 +15,7 @@ import {
   mockDepartments,
 } from '../data/mockData'
 
-const USE_MOCK_DATA = true // flip to false when ready to go live
+const USE_MOCK_DATA = false
 
 type Department = 'OPD' | 'Lab' | 'Pharmacy' | 'Maternity'
 

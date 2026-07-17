@@ -18,7 +18,7 @@ export default function AcceptInvite() {
   const navigate = useNavigate();
 
   useEffect(() => {
-    supabase.auth.getSession().then(({ data }) => {
+    supabase.auth.getSession().then(({ data }: { data: { session: unknown } }) => {
       setHasSession(!!data.session);
       setCheckingSession(false);
     });

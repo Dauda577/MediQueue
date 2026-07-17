@@ -22,13 +22,16 @@ export default function Login() {
   async function handleLogin() {
     setError(null);
     setLoading(true);
+
     try {
       await signIn(email, password);
       const staffMember = await getCurrentStaff();
       if (!staffMember) {
         throw new Error('No staff record found for this account.');
       }
-      navigate(staffMember.role === 'admin' ? '/admin' : '/staff', { replace: true });
+
+      const destination = staffMember.role === 'admin' ? '/admin' : '/staff';
+      window.location.assign(destination);
     } catch (err: any) {
       setError(err.message || 'Invalid email or password');
     } finally {
@@ -81,6 +84,10 @@ export default function Login() {
         >
           {loading ? <span className="login-spinner">Signing in</span> : 'Sign In'}
         </button>
+
+        <p className="login-demo-help">
+          Demo staff logins: staff@demo.com / staff1234, doctor@demo.com / doctor1234
+        </p>
 
         <p className="login-footer">MediQueue &copy; {new Date().getFullYear()}</p>
       </div>

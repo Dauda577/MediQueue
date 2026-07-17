@@ -1,7 +1,8 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { queueService } from '../../services/queueService'
-import { supabase } from '../../lib/supabase'
-import type { QueueEntry, StaffRole, Stage } from '../../types'
+import { useRealtimeQueue } from '../../hooks/useRealtimeQueue'
+import { useRealtimeAlerts } from '../../hooks/useRealtimeAlerts'
+import type { QueueEntry, CallAlert } from '../../types'
 import './AdminDashboard.css'
 
 export default function AdminDashboard() {
@@ -10,89 +11,70 @@ export default function AdminDashboard() {
   const [selectedDept, setSelectedDept] = useState<'OPD' | 'Lab' | 'Pharmacy'>('OPD')
   const [currentServing, setCurrentServing] = useState<QueueEntry | null>(null)
   const [stats, setStats] = useState({ served: 0, avgWait: 0, doctorsOnline: 0 })
+  const [recentAlert, setRecentAlert] = useState<CallAlert | null>(null)
 
-  // Invite staff form
-  const [showInvite, setShowInvite] = useState(false)
-  const [inviteEmail, setInviteEmail] = useState('')
-  const [inviteName, setInviteName] = useState('')
-  const [inviteRole, setInviteRole] = useState<StaffRole>('nurse')
-  const [inviteDept, setInviteDept] = useState<Stage>('OPD')
-  const [inviteLoading, setInviteLoading] = useState(false)
-  const [inviteError, setInviteError] = useState<string | null>(null)
-  const [inviteSuccess, setInviteSuccess] = useState<string | null>(null)
-
-  async function handleInviteStaff() {
-    setInviteError(null)
-    setInviteSuccess(null)
-    setInviteLoading(true)
+  // ════════════════════════════════════════
+  // FETCH QUEUE DATA
+  // ════════════════════════════════════════
+  const fetchQueue = useCallback(async () => {
     try {
-      const { data: sessionData } = await supabase.auth.getSession()
-      const token = sessionData.session?.access_token
-      if (!token) throw new Error('Not authenticated')
+      const [data, dashboardStats] = await Promise.all([
+        queueService.getQueueByDepartment(selectedDept),
+        queueService.getDashboardStats(),
+      ])
 
-      const { data, error } = await supabase.functions.invoke('invite-staff', {
-        body: {
-          email: inviteEmail,
-          name: inviteName,
-          role: inviteRole,
-          department: inviteDept,
-        },
-        headers: { Authorization: `Bearer ${token}` },
+      setQueue(data)
+      setStats({
+        served: dashboardStats.total_patients_today,
+        avgWait: dashboardStats.avg_wait_minutes,
+        doctorsOnline: dashboardStats.physicians_active,
       })
-
-      if (error) throw error
-      if (data?.error) throw new Error(data.error)
-
-      setInviteSuccess(`Invite sent to ${inviteEmail}`)
-      setInviteEmail('')
-      setInviteName('')
-    } catch (err: any) {
-      setInviteError(err.message || 'Failed to send invite')
+    } catch (error) {
+      console.error('Failed to fetch queue:', error)
     } finally {
-      setInviteLoading(false)
+      setLoading(false)
     }
-  }
-
-  // Fetch queue on mount and when department changes
-  useEffect(() => {
-    const fetchQueue = async () => {
-      setLoading(true)
-      try {
-        const data = await queueService.getQueueByDepartment(selectedDept)
-        setQueue(data)
-        
-        // Simulate stats (will come from backend later)
-        setStats({
-          served: Math.floor(Math.random() * 20) + 8,
-          avgWait: Math.floor(Math.random() * 20) + 10,
-          doctorsOnline: Math.floor(Math.random() * 3) + 1,
-        })
-      } catch (error) {
-        console.error('Failed to fetch queue:', error)
-      } finally {
-        setLoading(false)
-      }
-    }
-
-    fetchQueue()
-
-    // Poll every 5 seconds (will be real-time via Supabase later)
-    const interval = setInterval(fetchQueue, 5000)
-    return () => clearInterval(interval)
   }, [selectedDept])
 
+  // ════════════════════════════════════════
+  // INITIAL LOAD
+  // ════════════════════════════════════════
+  useEffect(() => {
+    fetchQueue()
+  }, [fetchQueue, selectedDept])
+
+  // ════════════════════════════════════════
+  // REAL-TIME QUEUE UPDATES
+  // ════════════════════════════════════════
+  useRealtimeQueue({
+    department: selectedDept,
+    onUpdate: fetchQueue, // Refetch when queue changes
+  })
+
+  // ════════════════════════════════════════
+  // REAL-TIME CALL ALERTS
+  // ════════════════════════════════════════
+  useRealtimeAlerts({
+    onNewAlert: (alert: CallAlert) => {
+      setRecentAlert(alert)
+      playAudio() // Play sound when alert arrives
+      
+      // Clear alert after 5 seconds
+      setTimeout(() => setRecentAlert(null), 5000)
+    },
+  })
+
+  // ════════════════════════════════════════
+  // HANDLERS
+  // ════════════════════════════════════════
   const handleCallNext = async () => {
     try {
       const next = await queueService.callNextPatient(selectedDept)
       setCurrentServing(next)
       console.log('Called patient:', next)
-      
-      // Play audio alert
       playAudio()
       
-      // Refresh queue
-      const updated = await queueService.getQueueByDepartment(selectedDept)
-      setQueue(updated)
+      // Queue will auto-update via real-time subscription
     } catch (error) {
       console.error('Failed to call next:', error)
     }
@@ -105,9 +87,7 @@ export default function AdminDashboard() {
       await queueService.markAsServed(currentServing.id)
       setCurrentServing(null)
       
-      // Refresh queue
-      const updated = await queueService.getQueueByDepartment(selectedDept)
-      setQueue(updated)
+      // Queue will auto-update via real-time subscription
     } catch (error) {
       console.error('Failed to mark served:', error)
     }
@@ -118,9 +98,7 @@ export default function AdminDashboard() {
       const newPriority = currentPriority === 'emergency' ? 'normal' : 'emergency'
       await queueService.markAsEmergency(queueId, newPriority as any)
       
-      // Refresh queue
-      const updated = await queueService.getQueueByDepartment(selectedDept)
-      setQueue(updated)
+      // Queue will auto-update via real-time subscription
     } catch (error) {
       console.error('Failed to toggle emergency:', error)
     }
@@ -145,8 +123,22 @@ export default function AdminDashboard() {
           {/* Header */}
           <div className="ad-header">
             <h1 className="ad-title">Queue Management</h1>
-            <p className="ad-subtitle">Manage patient queues and prioritization</p>
+            <p className="ad-subtitle">Real-time patient queue management</p>
           </div>
+
+          {/* Real-time Alert Notification */}
+          {recentAlert && (
+            <div className="ad-alert-notification">
+              <span className="ad-alert-icon">🔔</span>
+              <div className="ad-alert-content">
+                <p className="ad-alert-title">New Call Alert</p>
+                <p className="ad-alert-text">
+                  Patient #{recentAlert.queue_number} called to station
+                </p>
+              </div>
+              <span className="ad-alert-close"></span>
+            </div>
+          )}
 
           {/* Department Selector */}
           <div className="ad-dept-selector">
@@ -329,95 +321,15 @@ export default function AdminDashboard() {
             </div>
           </div>
 
-          {/* Quick Actions */}
+          {/* Status Indicator */}
           <div className="ad-sidebar-card">
-            <h3 className="ad-sidebar-title">Quick Actions</h3>
-            <button className="ad-btn ad-btn-primary" style={{ width: '100%', justifyContent: 'center' }}>
-              📊 View Reports
-            </button>
-            <button
-              onClick={() => setShowInvite((v) => !v)}
-              className="ad-btn ad-btn-ghost"
-              style={{ width: '100%', justifyContent: 'center', marginTop: '8px' }}
-            >
-              ✉️ Invite Staff
-            </button>
-          </div>
-
-          {/* Invite Staff Form */}
-          {showInvite && (
-            <div className="ad-sidebar-card">
-              <h3 className="ad-sidebar-title">Invite Staff Member</h3>
-
-              {inviteError && (
-                <div style={{ background: '#fef2f2', border: '1px solid #fecaca', color: '#dc2626', fontSize: '0.8125rem', padding: '0.6rem 0.8rem', borderRadius: '0.5rem', marginBottom: '0.75rem' }}>
-                  {inviteError}
-                </div>
-              )}
-              {inviteSuccess && (
-                <div style={{ background: '#f0fdf4', border: '1px solid #bbf7d0', color: '#16a34a', fontSize: '0.8125rem', padding: '0.6rem 0.8rem', borderRadius: '0.5rem', marginBottom: '0.75rem' }}>
-                  {inviteSuccess}
-                </div>
-              )}
-
-              <div style={{ marginBottom: '0.6rem' }}>
-                <input
-                  type="text"
-                  value={inviteName}
-                  onChange={(e) => setInviteName(e.target.value)}
-                  placeholder="Full name"
-                  className="ad-dept-select"
-                  style={{ width: '100%', boxSizing: 'border-box' }}
-                />
-              </div>
-              <div style={{ marginBottom: '0.6rem' }}>
-                <input
-                  type="email"
-                  value={inviteEmail}
-                  onChange={(e) => setInviteEmail(e.target.value)}
-                  placeholder="staff@hospital.com"
-                  className="ad-dept-select"
-                  style={{ width: '100%', boxSizing: 'border-box' }}
-                />
-              </div>
-              <div style={{ marginBottom: '0.6rem' }}>
-                <select
-                  value={inviteRole}
-                  onChange={(e) => setInviteRole(e.target.value as StaffRole)}
-                  className="ad-dept-select"
-                  style={{ width: '100%' }}
-                >
-                  <option value="doctor">Doctor</option>
-                  <option value="nurse">Nurse</option>
-                  <option value="pharmacist">Pharmacist</option>
-                  <option value="lab_tech">Lab Tech</option>
-                  <option value="admin">Admin</option>
-                </select>
-              </div>
-              <div style={{ marginBottom: '0.75rem' }}>
-                <select
-                  value={inviteDept}
-                  onChange={(e) => setInviteDept(e.target.value as Stage)}
-                  className="ad-dept-select"
-                  style={{ width: '100%' }}
-                >
-                  <option value="OPD">OPD</option>
-                  <option value="Lab">Lab</option>
-                  <option value="Pharmacy">Pharmacy</option>
-                  <option value="Maternity">Maternity</option>
-                </select>
-              </div>
-
-              <button
-                onClick={handleInviteStaff}
-                disabled={inviteLoading || !inviteName || !inviteEmail}
-                className="ad-btn ad-btn-primary"
-                style={{ width: '100%', justifyContent: 'center' }}
-              >
-                {inviteLoading ? 'Sending…' : 'Send Invite'}
-              </button>
+            <h3 className="ad-sidebar-title">Connection Status</h3>
+            <div className="ad-status-indicator">
+              <span className="ad-status-dot">🟢</span>
+              <span className="ad-status-text">Real-time Connected</span>
             </div>
-          )}
+            <p className="ad-status-info">Queue updates in real-time via Supabase</p>
+          </div>
         </div>
       </div>
     </div>
