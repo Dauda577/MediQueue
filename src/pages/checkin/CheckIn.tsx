@@ -25,24 +25,12 @@ export interface QueueStats {
 
 export type DepartmentStats = Record<DepartmentId, QueueStats>;
 
-// ─── Mock data (swap for Supabase calls later) ────────────────────────────────
-
 const DEPARTMENTS: DepartmentConfig[] = [
   { id: 'OPD',      label: 'OPD',      sub: 'Gen. Consultation', icon: '🩺', avgMinsPerPatient: 4 },
   { id: 'Lab',      label: 'Lab',      sub: 'Blood & Scans',     icon: '🔬', avgMinsPerPatient: 2 },
   { id: 'Pharmacy', label: 'Pharmacy', sub: 'Prescriptions',     icon: '💊', avgMinsPerPatient: 1 },
   { id: 'Maternity', label: 'Maternity', sub: 'Maternal Care',   icon: '🤱', avgMinsPerPatient: 6 },
 ];
-
-const MOCK_DEPT_STATS: DepartmentStats = {
-  OPD:      { waiting: 8, avgWaitMins: 32 },
-  Lab:      { waiting: 3, avgWaitMins: 6  },
-  Pharmacy: { waiting: 0, avgWaitMins: 0  },
-  Maternity: { waiting: 2, avgWaitMins: 12 },
-};
-
-// Overall average across all departments (shown in hero)
-const MOCK_OVERALL_AVG_WAIT = 16;
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -54,18 +42,6 @@ function validatePhone(phone: string): string | null {
     return 'Enter a valid Ghanaian number, e.g. 024 XXX XXXX';
   }
   return null;
-}
-
-function generateMockToken(dept: DepartmentId): string {
-  // TODO: replace with token returned from Supabase insert:
-  //   const { data } = await supabase
-  //     .from('queue_entries')
-  //     .insert({ full_name, phone, department, is_priority, status: 'waiting' })
-  //     .select('token_id')
-  //     .single();
-  //   return data.token_id;
-  const prefix = dept === 'OPD' ? 'MQ' : dept === 'Lab' ? 'LB' : dept === 'Maternity' ? 'MT' : 'PH';
-  return `${prefix}-${Math.floor(10000 + Math.random() * 90000)}`;
 }
 
 // ─── Sub-components ───────────────────────────────────────────────────────────
@@ -116,7 +92,12 @@ export default function CheckIn() {
   const [error, setError]             = useState('');
   const [fieldErrors, setFieldErrors] = useState<{ name?: string; phone?: string }>({});
 
-  const [deptStats, setDeptStats] = useState<DepartmentStats>(MOCK_DEPT_STATS);
+  const [deptStats, setDeptStats] = useState<DepartmentStats>({
+    OPD:      { waiting: 0, avgWaitMins: 0 },
+    Lab:      { waiting: 0, avgWaitMins: 0 },
+    Pharmacy: { waiting: 0, avgWaitMins: 0 },
+    Maternity: { waiting: 0, avgWaitMins: 0 },
+  });
 
   const fetchDeptStats = useCallback(async () => {
     const entries = await Promise.all(
@@ -137,10 +118,12 @@ export default function CheckIn() {
 
   useRealtimeQueue({ onUpdate: fetchDeptStats })
 
+  useEffect(() => { fetchDeptStats() }, [fetchDeptStats])
+
   // Overall avg from live stats
   const overallAvgWait = Math.round(
     Object.values(deptStats).reduce((sum, s) => sum + s.avgWaitMins, 0) /
-    Object.values(deptStats).filter(s => s.waiting > 0).length || MOCK_OVERALL_AVG_WAIT
+    (Object.values(deptStats).filter(s => s.waiting > 0).length || 1)
   );
 
   const animatedWaitTime = useCountUp(overallAvgWait, 1500, true);
@@ -171,22 +154,26 @@ export default function CheckIn() {
 
     setLoading(true);
     try {
-      const tokenId = generateMockToken(department!);
+      const patient = await queueService.checkInPatient(
+        fullName.trim(),
+        department!,
+        {
+          phone: phone.trim() || undefined,
+          priority: isPriority ? 'priority' : 'normal',
+        }
+      );
 
-      // Simulate network latency
-      await new Promise(resolve => setTimeout(resolve, 800));
-
-      navigate(`/queue/${tokenId}`, {
+      navigate(`/queue/${patient.token_id}`, {
         state: {
-          fullName:   fullName.trim(),
-          phone:      phone.trim() || null,
-          department,
-          isPriority,
-          tokenId,
+          fullName:   patient.full_name,
+          phone:      patient.phone,
+          department: patient.initial_department,
+          isPriority: patient.priority !== 'normal',
+          tokenId:    patient.token_id,
         },
       });
-    } catch {
-      setError('Something went wrong. Please try again.');
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Something went wrong. Please try again.');
       setLoading(false);
     }
   };

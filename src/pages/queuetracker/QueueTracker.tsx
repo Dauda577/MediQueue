@@ -1,29 +1,9 @@
 import { useLocation, useParams, useNavigate } from 'react-router-dom';
 import { useEffect, useState, useRef, useCallback } from 'react';
 import { useRealtimeAlerts } from '../../hooks/useRealtimeAlerts'
+import { supabase } from '../../lib/supabase'
+import type { Patient } from '../../types'
 import './QueueTracker.css';
-
-// ─── Mock data (swap these fetches/subscriptions for Supabase later) ──────────
-
-const MOCK_QUEUE = {
-  tokenId: 'MQ-88241',
-  fullName: 'Kwame Mensah',
-  department: 'OPD',
-  isPriority: false,
-  position: 4,
-  total: 12,
-  stage: 'waiting',     
-  stationRoom: 'Room 3',
-  stationWing: 'Ground Floor, West Wing',
-  avgMinsPerPatient: 4,    // used to derive waitMins
-};
-
-const MOCK_QUEUE_STATS = {
-  served: 8,
-  avgWait: 16,
-  doctorsOnline: 3,
-  systemStatus: 'Normal',
-}/////;
 
 
 
@@ -40,6 +20,26 @@ type Notification = {
   text: string;
   type: 'info' | 'success' | 'warning';
 };
+
+interface QueueDisplayData {
+  tokenId: string;
+  fullName: string;
+  department: string;
+  isPriority: boolean;
+  position: number;
+  total: number;
+  stage: string;
+  stationRoom: string;
+  stationWing: string;
+  avgMinsPerPatient: number;
+}
+
+interface SidebarStats {
+  served: number;
+  avgWait: number;
+  doctorsOnline: number;
+  systemStatus: string;
+}
 
 function stageIndex(key: string) {
   return STAGES.findIndex(s => s.key === key);
@@ -81,44 +81,127 @@ function playAlert(type = 'notify') {
   }
 }
 
+// ─── Helpers ─────────────────────────────────────────────────────────────────
+
+const STATION_MAP: Record<string, { room: string; wing: string }> = {
+  OPD:      { room: 'Room 3',      wing: 'Ground Floor, West Wing' },
+  Lab:      { room: 'Lab-1',       wing: 'Ground Floor, East Wing' },
+  Pharmacy: { room: 'Counter 2',   wing: 'Ground Floor, Main Hall'  },
+  Maternity: { room: 'Ward 1',    wing: 'First Floor, East Wing'   },
+};
+
+function deriveStage(status: string): string {
+  if (status === 'waiting') return 'waiting'
+  if (status === 'in_consultation') return 'consultation'
+  if (status === 'in_lab') return 'lab'
+  if (status === 'in_pharmacy') return 'pharmacy'
+  return 'done'
+}
+
+function patientToQueueData(patient: Patient, totalInQueue: number) {
+  return {
+    tokenId:       patient.token_id,
+    fullName:      patient.full_name,
+    department:    patient.initial_department,
+    isPriority:    patient.priority !== 'normal',
+    position:      patient.position,
+    total:         totalInQueue,
+    stage:         deriveStage(patient.status),
+    stationRoom:   STATION_MAP[patient.initial_department]?.room ?? 'Reception',
+    stationWing:   STATION_MAP[patient.initial_department]?.wing ?? 'Main Building',
+    avgMinsPerPatient: 4,
+  }
+}
+
 // ─── Component ────────────────────────────────────────────────────────────────
 
 export default function QueueTracker() {
-  const { tokenId } = useParams();
+  const { tokenId: paramToken } = useParams();
   const { state } = useLocation();
   const navigate = useNavigate();
 
- 
-  const [queueData, setQueueData] = useState(() => ({
-    ...MOCK_QUEUE,
-    // Override with router state if coming from check-in
-    tokenId:    state?.tokenId    || tokenId    || MOCK_QUEUE.tokenId,
-    fullName:   state?.fullName   || MOCK_QUEUE.fullName,
-    department: state?.department || MOCK_QUEUE.department,
-  }));
-  const [stats]         = useState(MOCK_QUEUE_STATS);
+  const token = state?.tokenId || paramToken || '';
+
+  const [queueData, setQueueData] = useState<QueueDisplayData | null>(null);
+  const [stats, setStats]         = useState<SidebarStats>({ served: 0, avgWait: 0, doctorsOnline: 0, systemStatus: 'Normal' });
   const [loading, setLoading]     = useState(false);
   const [lastUpdated, setLastUpdated] = useState(new Date());
   const [notification, setNotification] = useState<Notification | null>(null); 
   const [helpOpen, setHelpOpen]   = useState(false);
 
-  const alertFiredRef = useRef(false); // prevent repeat audio for same trigger
+  const alertFiredRef = useRef(false);
 
-  const currentStageIdx = stageIndex(queueData.stage);
-  const waitMins = deriveWaitMins(queueData.position, queueData.avgMinsPerPatient);
-  const ringOffset = 201 - (201 * (queueData.total - queueData.position) / queueData.total);
+  const showNotification = useCallback((text: string, type: Notification['type'] = 'info') => {
+    setNotification({ text, type });
+    setTimeout(() => setNotification(null), 6000);
+  }, []);
 
-  
+  // ── Fetch patient + queue + sidebar stats ──
+  const fetchAll = useCallback(async (tokenId: string) => {
+    if (!tokenId) return
+
+    const [patientRes, queueRes, statsRes] = await Promise.all([
+      supabase.from('patients').select('*').eq('token_id', tokenId).maybeSingle(),
+      supabase.from('patients').select('id', { count: 'exact', head: true }).eq('status', 'waiting'),
+      Promise.all([
+        supabase.from('patients').select('id', { count: 'exact', head: true }).eq('status', 'done'),
+        supabase.from('staff_members').select('id').eq('role', 'doctor').eq('is_active', true),
+      ]),
+    ])
+
+    if (patientRes.error) throw patientRes.error
+    if (!patientRes.data) return
+
+    const totalInQueue = queueRes.count ?? 0
+    const servedCount = statsRes[0].count ?? 0
+    const doctorsCount = statsRes[1].data?.length ?? 0
+
+    setQueueData(patientToQueueData(patientRes.data, totalInQueue))
+    setStats({ served: servedCount, avgWait: totalInQueue * 4, doctorsOnline: doctorsCount, systemStatus: 'Normal' })
+    setLastUpdated(new Date())
+  }, [])
+
+  // ── Initial load ──
   useEffect(() => {
+    if (token) fetchAll(token)
+  }, [token, fetchAll])
+
+  // ── Realtime subscription for this patient ──
+  useEffect(() => {
+    if (!queueData) return
+
+    const channel = supabase
+      .channel(`queue:${queueData.tokenId}`)
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'patients',
+          filter: `token_id=eq.${queueData.tokenId}`,
+        },
+        () => { fetchAll(queueData.tokenId) }
+      )
+      .subscribe()
+
+    return () => { supabase.removeChannel(channel) }
+  }, [queueData?.tokenId, fetchAll])
+
+  const currentStageIdx = queueData ? stageIndex(queueData.stage) : -1;
+  const waitMins = queueData ? deriveWaitMins(queueData.position, queueData.avgMinsPerPatient) : 0;
+  const ringOffset = queueData ? 201 - (201 * (queueData.total - queueData.position) / queueData.total) : 0;
+
+  useEffect(() => {
+    if (!queueData) return
     if (queueData.position <= 2 && !alertFiredRef.current) {
       alertFiredRef.current = true;
       playAlert(queueData.isPriority ? 'urgent' : 'notify');
       showNotification("You're almost up! Please make your way to the station.", 'warning');
     }
     if (queueData.position > 2) {
-      alertFiredRef.current = false; // reset if position moves back (re-queue)
+      alertFiredRef.current = false;
     }
-  }, [queueData.position, queueData.isPriority]);
+  }, [queueData?.position, queueData?.isPriority, showNotification]);
 
   useRealtimeAlerts({
     onNewAlert: (alert) => {
@@ -127,62 +210,26 @@ export default function QueueTracker() {
     }
   })
 
-  const showNotification = useCallback((text: string, type: Notification['type'] = 'info') => {
-    setNotification({ text, type });
-    setTimeout(() => setNotification(null), 6000);
-  }, []);
-
-  // ── Simulate real-time mock updates (replace with Supabase realtime sub) ──
-  useEffect(() => {
-    // TODO: replace this entire block with:
-    //   const channel = supabase
-    //     .channel(`queue:${queueData.tokenId}`)
-    //     .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'queue_entries',
-    //         filter: `token_id=eq.${queueData.tokenId}` },
-    //       payload => applyUpdate(payload.new))
-    //     .subscribe();
-    //   return () => supabase.removeChannel(channel);
-
-    let steps = 0;
-    const interval = setInterval(() => {
-      steps++;
-      setQueueData(prev => {
-        // Simulate position moving down every ~12s
-        if (steps % 3 === 0 && prev.position > 1) {
-          const newPos = prev.position - 1;
-          setLastUpdated(new Date());
-          return { ...prev, position: newPos };
-        }
-
-        if (prev.position === 1 && prev.stage === 'waiting') {
-          setLastUpdated(new Date());
-          showNotification("It's your turn! Please proceed to " + prev.stationRoom, 'success');
-          playAlert('notify');
-          return { ...prev, stage: 'consultation', position: 1 };
-        }
-        return prev;
-      });
-    }, 4000);
-
-    return () => clearInterval(interval);
-  }, [showNotification]);
-
-  // ── Manual refresh (replace with actual re-fetch) ──
-  const handleRefresh = useCallback(() => {
+  // ── Manual refresh ──
+  const handleRefresh = useCallback(async () => {
+    if (!queueData) return
     setLoading(true);
-    // TODO: replace with Supabase fetch:
-    //   const { data } = await supabase
-    //     .from('queue_entries')
-    //     .select('*')
-    //     .eq('token_id', queueData.tokenId)
-    //     .single();
-    //   applyUpdate(data);
-    setTimeout(() => {
-      setLastUpdated(new Date());
-      setLoading(false);
+    try {
+      await fetchAll(queueData.tokenId)
       showNotification('Status refreshed.', 'info');
-    }, 800);
-  }, [showNotification]);
+    } catch {
+      showNotification('Failed to refresh. Try again.', 'warning');
+    }
+    setLoading(false);
+  }, [queueData, fetchAll, showNotification]);
+
+  if (!queueData) {
+    return (
+      <div className="qt-page" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100vh' }}>
+        <p>Loading queue data…</p>
+      </div>
+    )
+  }
 
   return (
     <div className="qt-page">

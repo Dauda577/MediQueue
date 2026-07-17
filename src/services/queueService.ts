@@ -15,7 +15,7 @@ import {
   mockDepartments,
 } from '../data/mockData'
 
-const USE_MOCK_DATA = false
+const USE_MOCK_DATA = true // flip to false when ready to go live
 
 type Department = 'OPD' | 'Lab' | 'Pharmacy' | 'Maternity'
 
@@ -42,7 +42,8 @@ export const queueService = {
 
   async checkInPatient(
     fullName: string,
-    department: Department
+    department: Department,
+    options?: { phone?: string; priority?: 'normal' | 'priority' | 'emergency' }
   ): Promise<Patient> {
     if (USE_MOCK_DATA) {
       const newPatient: Patient = {
@@ -52,7 +53,7 @@ export const queueService = {
         initial_department: department,
         current_stage: department,
         status: 'waiting',
-        priority: 'normal',
+        priority: options?.priority ?? 'normal',
         position: mockQueueEntries.length + 1,
         queue_number: Math.floor(Math.random() * 1000),
         checked_in_at: new Date().toISOString(),
@@ -60,7 +61,7 @@ export const queueService = {
         assigned_station: null,
         called_at: null,
         done_at: null,
-        phone: null,
+        phone: options?.phone ?? null,
         user_id: null,
       }
       mockPatients.push(newPatient)
@@ -86,10 +87,11 @@ export const queueService = {
       .from('patients')
       .insert({
         full_name: fullName,
+        phone: options?.phone ?? null,
         initial_department: department,
         current_stage: department,
         status: 'waiting',
-        priority: 'normal',
+        priority: options?.priority ?? 'normal',
         queue_number: queueNumber,
         token_id: tokenId,
         position: queueNumber,
