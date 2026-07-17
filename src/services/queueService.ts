@@ -15,7 +15,7 @@ import {
   mockDepartments,
 } from '../data/mockData'
 
-const USE_MOCK_DATA = true // flip to false when ready to go live
+const USE_MOCK_DATA = false // flip to false when ready to go live
 
 type Department = 'OPD' | 'Lab' | 'Pharmacy' | 'Maternity'
 
@@ -24,10 +24,6 @@ export const queueService = {
   // DEPARTMENT / STAGE METHODS
 
   async getDepartments() {
-    if (USE_MOCK_DATA) {
-      return new Promise(resolve => setTimeout(() => resolve(mockDepartments), 500))
-    }
-
     const { data, error } = await supabase
       .from('patients')
       .select('current_stage')
@@ -45,30 +41,6 @@ export const queueService = {
     department: Department,
     options?: { phone?: string; priority?: 'normal' | 'priority' | 'emergency' }
   ): Promise<Patient> {
-    if (USE_MOCK_DATA) {
-      const newPatient: Patient = {
-        id: `patient_${Date.now()}`,
-        full_name: fullName,
-        token_id: `TOKEN_${Math.random().toString(36).substr(2, 9).toUpperCase()}`,
-        initial_department: department,
-        current_stage: department,
-        status: 'waiting',
-        priority: options?.priority ?? 'normal',
-        position: mockQueueEntries.length + 1,
-        queue_number: Math.floor(Math.random() * 1000),
-        checked_in_at: new Date().toISOString(),
-        created_at: new Date().toISOString(),
-        assigned_station: null,
-        called_at: null,
-        done_at: null,
-        phone: options?.phone ?? null,
-        user_id: null,
-      }
-      mockPatients.push(newPatient)
-      return new Promise(resolve => setTimeout(() => resolve(newPatient), 300))
-    }
-
-    // Get today's count for this department to assign queue number
     const today = new Date().toISOString().split('T')[0]
     const { count } = await supabase
       .from('patients')
@@ -110,16 +82,13 @@ export const queueService = {
   async getQueueByDepartment(
     department: Department
   ): Promise<QueueEntry[]> {
-    if (USE_MOCK_DATA) {
-      const filtered = mockQueueEntries.filter(q => q.current_stage === department)
-      return new Promise(resolve => setTimeout(() => resolve(filtered), 300))
-    }
-
+    const today = new Date().toISOString().split('T')[0]
     const { data, error } = await supabase
       .from('patients')
       .select('id, token_id, full_name, queue_number, current_stage, status, priority, position, checked_in_at')
       .eq('current_stage', department)
       .eq('status', 'waiting')
+      .gte('checked_in_at', today)
       .order('priority', { ascending: true })
       .order('position', { ascending: true })
 
@@ -132,11 +101,6 @@ export const queueService = {
   },
 
   async getPatientQueue(patientId: string): Promise<QueueEntry | null> {
-    if (USE_MOCK_DATA) {
-      const entry = mockQueueEntries.find(q => q.id === patientId)
-      return new Promise(resolve => setTimeout(() => resolve(entry || null), 200))
-    }
-
     const { data, error } = await supabase
       .from('patients')
       .select('id, token_id, full_name, queue_number, current_stage, status, priority, position, checked_in_at')
@@ -150,24 +114,13 @@ export const queueService = {
   async callNextPatient(
     department: Department
   ): Promise<QueueEntry> {
-    if (USE_MOCK_DATA) {
-      const sorted = mockQueueEntries
-        .filter(q => q.current_stage === department && q.status === 'waiting')
-        .sort((a, b) => {
-          const priorityOrder = { emergency: 0, priority: 1, normal: 2 }
-          return priorityOrder[a.priority] - priorityOrder[b.priority]
-        })
-      if (sorted.length === 0) throw new Error('No patients in queue')
-      const next = sorted[0]
-      next.status = 'in_consultation'
-      return new Promise(resolve => setTimeout(() => resolve(next), 200))
-    }
-
+    const today = new Date().toISOString().split('T')[0]
     const { data, error } = await supabase
       .from('patients')
       .select('id, token_id, full_name, queue_number, current_stage, status, priority, position, checked_in_at')
       .eq('current_stage', department)
       .eq('status', 'waiting')
+      .gte('checked_in_at', today)
       .order('priority', { ascending: true })
       .order('position', { ascending: true })
       .limit(1)
@@ -188,13 +141,6 @@ export const queueService = {
   },
 
   async markAsServed(queueId: string): Promise<QueueEntry> {
-    if (USE_MOCK_DATA) {
-      const entry = mockQueueEntries.find(q => q.id === queueId)
-      if (!entry) throw new Error('Queue entry not found')
-      entry.status = 'done'
-      return new Promise(resolve => setTimeout(() => resolve(entry), 200))
-    }
-
     const { data, error } = await supabase
       .from('patients')
       .update({ status: 'done', done_at: new Date().toISOString() })
@@ -207,13 +153,6 @@ export const queueService = {
   },
 
   async markAsEmergency(queueId: string, priority: 'normal' | 'priority' | 'emergency'): Promise<QueueEntry> {
-    if (USE_MOCK_DATA) {
-      const entry = mockQueueEntries.find(q => q.id === queueId)
-      if (!entry) throw new Error('Queue entry not found')
-      entry.priority = priority
-      return new Promise(resolve => setTimeout(() => resolve(entry), 200))
-    }
-
     const { data, error } = await supabase
       .from('patients')
       .update({ priority })
@@ -230,10 +169,6 @@ export const queueService = {
 
 
   async getStaffMembers(): Promise<StaffMember[]> {
-    if (USE_MOCK_DATA) {
-      return new Promise(resolve => setTimeout(() => resolve(mockStaffMembers), 300))
-    }
-
     const { data, error } = await supabase
       .from('staff_members')
       .select('*')
@@ -244,11 +179,6 @@ export const queueService = {
   },
 
   async getStaffByDepartment(department: Department): Promise<StaffMember[]> {
-    if (USE_MOCK_DATA) {
-      const filtered = mockStaffMembers.filter(s => s.department === department)
-      return new Promise(resolve => setTimeout(() => resolve(filtered), 200))
-    }
-
     const { data, error } = await supabase
       .from('staff_members')
       .select('*')
@@ -264,19 +194,6 @@ export const queueService = {
 
 
   async recordCallAlert(patientId: string, queueNumber: number, department: string): Promise<CallAlert> {
-    if (USE_MOCK_DATA) {
-      const alert: CallAlert = {
-        id: `call_${Date.now()}`,
-        patient_id: patientId,
-        queue_number: queueNumber,
-        department: department as 'OPD' | 'Lab' | 'Pharmacy' | 'Maternity',
-        called_at: new Date().toISOString(),
-        acknowledged: false,
-      }
-      mockCallAlerts.push(alert)
-      return new Promise(resolve => setTimeout(() => resolve(alert), 100))
-    }
-
     const { data, error } = await supabase
       .from('call_alerts')
       .insert({
@@ -293,13 +210,6 @@ export const queueService = {
   },
 
   async acknowledgeCallAlert(alertId: string): Promise<CallAlert> {
-    if (USE_MOCK_DATA) {
-      const alert = mockCallAlerts.find(a => a.id === alertId)
-      if (!alert) throw new Error('Alert not found')
-      alert.acknowledged = true
-      return new Promise(resolve => setTimeout(() => resolve(alert), 100))
-    }
-
     const { data, error } = await supabase
       .from('call_alerts')
       .update({ acknowledged: true })
@@ -316,10 +226,6 @@ export const queueService = {
 
 
   async getDashboardStats(): Promise<DashboardStats> {
-    if (USE_MOCK_DATA) {
-      return new Promise(resolve => setTimeout(() => resolve(mockDashboardStats), 500))
-    }
-
     const today = new Date().toISOString().split('T')[0]
 
     const [{ count: totalToday }, { data: waiting }, { data: activeStaff }] = await Promise.all([

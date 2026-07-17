@@ -8,33 +8,107 @@ import './AdminDashboard.css'
 export default function AdminDashboard() {
   const [queue, setQueue] = useState<QueueEntry[]>([])
   const [loading, setLoading] = useState(true)
-  const [selectedDept, setSelectedDept] = useState<'OPD' | 'Lab' | 'Pharmacy'>('OPD')
+  const [selectedDept, setSelectedDept] = useState<Stage>('OPD')
   const [currentServing, setCurrentServing] = useState<QueueEntry | null>(null)
   const [stats, setStats] = useState({ served: 0, avgWait: 0, doctorsOnline: 0 })
-  const [recentAlert, setRecentAlert] = useState<CallAlert | null>(null)
 
-  // ════════════════════════════════════════
-  // FETCH QUEUE DATA
-  // ════════════════════════════════════════
-  const fetchQueue = useCallback(async () => {
+  // Invite staff form
+  const [showInvite, setShowInvite] = useState(false)
+  const [inviteEmail, setInviteEmail] = useState('')
+  const [inviteName, setInviteName] = useState('')
+  const [inviteRole, setInviteRole] = useState<StaffRole>('nurse')
+  const [inviteDept, setInviteDept] = useState<Stage>('OPD')
+  const [inviteLoading, setInviteLoading] = useState(false)
+  const [inviteError, setInviteError] = useState<string | null>(null)
+  const [inviteSuccess, setInviteSuccess] = useState<string | null>(null)
+
+  async function handleInviteStaff() {
+    setInviteError(null)
+    setInviteSuccess(null)
+    setInviteLoading(true)
     try {
-      const [data, dashboardStats] = await Promise.all([
-        queueService.getQueueByDepartment(selectedDept),
-        queueService.getDashboardStats(),
-      ])
+      const { data: sessionData } = await supabase.auth.getSession()
+      const token = sessionData.session?.access_token
+      if (!token) throw new Error('Not authenticated')
 
-      setQueue(data)
-      setStats({
-        served: dashboardStats.total_patients_today,
-        avgWait: dashboardStats.avg_wait_minutes,
-        doctorsOnline: dashboardStats.physicians_active,
+      const { data, error } = await supabase.functions.invoke('invite-staff', {
+        body: {
+          email: inviteEmail,
+          name: inviteName,
+          role: inviteRole,
+          department: inviteDept,
+        },
+        headers: { Authorization: `Bearer ${token}` },
       })
-    } catch (error) {
-      console.error('Failed to fetch queue:', error)
+
+      if (error) throw error
+      if (data?.error) throw new Error(data.error)
+
+      setInviteSuccess(`Invite sent to ${inviteEmail}`)
+      setInviteEmail('')
+      setInviteName('')
+    } catch (err: any) {
+      setInviteError(err.message || 'Failed to send invite')
     } finally {
-      setLoading(false)
+      setInviteLoading(false)
     }
+  }
+
+  // Fetch queue on mount and when department changes
+  useEffect(() => {
+    const fetchQueue = async () => {
+      setLoading(true)
+      try {
+        const data = await queueService.getQueueByDepartment(selectedDept)
+        setQueue(data)
+        
+        // Simulate stats (will come from backend later)
+        setStats({
+          served: Math.floor(Math.random() * 20) + 8,
+          avgWait: Math.floor(Math.random() * 20) + 10,
+          doctorsOnline: Math.floor(Math.random() * 3) + 1,
+        })
+      } catch (error) {
+        console.error('Failed to fetch queue:', error)
+      } finally {
+        setLoading(false)
+      }
+    }
+
+    fetchQueue()
+
+    // Poll every 5 seconds (will be real-time via Supabase later)
+    const interval = setInterval(fetchQueue, 5000)
+    return () => clearInterval(interval)
   }, [selectedDept])
+
+  useEffect(() => { fetchAll() }, [fetchAll])
+
+  // Realtime subscription
+  useEffect(() => {
+    const channel = supabase
+      .channel(`admin-queue-${selectedDept}`)
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'patients' },
+        () => { fetchAll() }
+      )
+      .subscribe()
+
+    const staffChannel = supabase
+      .channel('admin-staff')
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'staff_members' },
+        () => { fetchAll() }
+      )
+      .subscribe()
+
+    return () => {
+      supabase.removeChannel(channel)
+      supabase.removeChannel(staffChannel)
+    }
+  }, [fetchAll])
 
   // ════════════════════════════════════════
   // INITIAL LOAD
@@ -145,12 +219,13 @@ export default function AdminDashboard() {
             <label className="ad-dept-label">Department:</label>
             <select 
               value={selectedDept} 
-              onChange={e => setSelectedDept(e.target.value as any)}
+              onChange={e => setSelectedDept(e.target.value as Stage)}
               className="ad-dept-select"
             >
               <option value="OPD">Outpatient (OPD)</option>
               <option value="Lab">Laboratory</option>
               <option value="Pharmacy">Pharmacy</option>
+              <option value="Maternity">Maternity</option>
             </select>
           </div>
 

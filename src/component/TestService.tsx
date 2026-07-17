@@ -35,7 +35,7 @@ export default function TestService() {
   return (
     <div style={{ padding: '20px', fontFamily: 'monospace' }}>
       <h1>Service Test ✅</h1>
-      <p>If you see queue data below, mock service works!</p>
+      <p>If you see queue data below, the service is connected!</p>
       
       <h2>OPD Queue ({queue.length} patients)</h2>
       {queue.length === 0 ? (
@@ -51,7 +51,7 @@ export default function TestService() {
       )}
       
       <p style={{ marginTop: '20px', color: 'green' }}>
-        ✅ Mock data is working!
+        ✅ Live data connected!
       </p>
     </div>
   )

@@ -140,11 +140,19 @@ export default function QueueTracker() {
   const fetchAll = useCallback(async (tokenId: string) => {
     if (!tokenId) return
 
+    const today = new Date().toISOString().split('T')[0]
+
     const [patientRes, queueRes, statsRes] = await Promise.all([
       supabase.from('patients').select('*').eq('token_id', tokenId).maybeSingle(),
-      supabase.from('patients').select('id', { count: 'exact', head: true }).eq('status', 'waiting'),
+      supabase.from('patients')
+        .select('id', { count: 'exact', head: true })
+        .eq('status', 'waiting')
+        .gte('checked_in_at', today),
       Promise.all([
-        supabase.from('patients').select('id', { count: 'exact', head: true }).eq('status', 'done'),
+        supabase.from('patients')
+          .select('id', { count: 'exact', head: true })
+          .eq('status', 'done')
+          .gte('checked_in_at', today),
         supabase.from('staff_members').select('id').eq('role', 'doctor').eq('is_active', true),
       ]),
     ])
