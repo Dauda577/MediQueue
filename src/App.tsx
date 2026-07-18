@@ -7,6 +7,7 @@ import AdminDashboard from './pages/admindashboard/AdminDashboard';
 import EmergencyOverride from './pages/emergencyoverride/EmergencyOverride';
 import Login from './pages/login/Login';
 import AcceptInvite from './pages/acceptinvite/AcceptInvite';
+import NotFound from './pages/notfound/NotFound';
 
 // Redirects to login if not authenticated
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
@@ -35,6 +36,9 @@ export default function App() {
         <Route path="/staff" element={<ProtectedRoute><StaffPortal /></ProtectedRoute>} />
         <Route path="/admin" element={<ProtectedRoute><AdminDashboard /></ProtectedRoute>} />
         <Route path="/emergency" element={<ProtectedRoute><EmergencyOverride /></ProtectedRoute>} />
+
+        {/* Catch-all 404 */}
+        <Route path="*" element={<NotFound />} />
       </Routes>
     </BrowserRouter>
   );

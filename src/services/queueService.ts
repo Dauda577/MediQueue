@@ -31,40 +31,19 @@ export const queueService = {
     department: Department,
     options?: { phone?: string; priority?: 'normal' | 'priority' | 'emergency' }
   ): Promise<Patient> {
-    const today = new Date().toISOString().split('T')[0]
-    const { count } = await supabase
-      .from('patients')
-      .select('*', { count: 'exact', head: true })
-      .eq('initial_department', department)
-      .gte('checked_in_at', today)
+    const { data, error } = await supabase.rpc('check_in_patient', {
+      p_full_name: fullName,
+      p_department: department,
+      p_phone: options?.phone || undefined,
+      p_priority: options?.priority ?? 'normal',
+    })
 
-    const queueNumber = (count ?? 0) + 1
-    const prefix = department === 'OPD' ? 'MQ'
-      : department === 'Lab' ? 'LB'
-      : department === 'Maternity' ? 'MT'
-      : 'PH'
-    const tokenId = `${prefix}-${String(queueNumber).padStart(5, '0')}`
-
-    const { data, error } = await supabase
-      .from('patients')
-      .insert({
-        full_name: fullName,
-        phone: options?.phone ?? null,
-        initial_department: department,
-        current_stage: department,
-        status: 'waiting',
-        priority: options?.priority ?? 'normal',
-        queue_number: queueNumber,
-        token_id: tokenId,
-        position: queueNumber,
-      })
-      .select()
-      .single()
-
-    if (error) throw error
-    return data
+    if (error) {
+      console.error('[CHECKIN_RPC] Supabase error:', { message: error.message, details: error.details, hint: error.hint, code: error.code })
+      throw error
+    }
+    return data as unknown as Patient
   },
-
 
   // QUEUE OPERATIONS
 
