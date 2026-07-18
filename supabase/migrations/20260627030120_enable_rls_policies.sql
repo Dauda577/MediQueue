@@ -84,5 +84,16 @@ CREATE POLICY "auth_insert_override_logs"
   TO authenticated
   WITH CHECK (true);
 
--- Enable realtime for the patients table (for live queue updates)
-ALTER PUBLICATION supabase_realtime ADD TABLE patients;
+-- Enable realtime for the patients table (idempotent)
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_publication_tables
+    WHERE pubname = 'supabase_realtime'
+      AND schemaname = 'public'
+      AND tablename = 'patients'
+  ) THEN
+    ALTER PUBLICATION supabase_realtime ADD TABLE public.patients;
+  END IF;
+END;
+$$;
