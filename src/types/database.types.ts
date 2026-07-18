@@ -189,6 +189,10 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      get_hourly_checkins: {
+        Args: { date: string }
+        Returns: { hour: string; count: number }
+      }
       get_staff_role: {
         Args: never
         Returns: Database["public"]["Enums"]["staff_role"]

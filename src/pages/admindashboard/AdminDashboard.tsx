@@ -103,7 +103,7 @@ export default function AdminDashboard() {
         priorityMap.set(p.priority, (priorityMap.get(p.priority) || 0) + 1)
       })
 
-      const hourly = hourlyTrend as { hour: string; count: number }[]
+      const hourly = hourlyResult as { hour: string; count: number }[]
 
       setReportData({
         deptBreakdown: DEPARTMENTS.map(d => ({ dept: d, count: deptMap.get(d) || 0 })),
