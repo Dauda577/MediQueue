@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback } from 'react'
 import { useAuth } from '../../context/AuthContext'
 import { useRealtimeQueue } from '../../hooks/useRealtimeQueue'
 import { queueService } from '../../services/queueService'
+import { announcePatient } from '../../lib/announce'
 import type { QueueEntry } from '../../types'
 import './StaffPortal.css'
 
@@ -43,6 +44,7 @@ export default function StaffPortal() {
     try {
       const nextPatient = await queueService.callNextPatient(department)
       setCurrentServing(nextPatient)
+      announcePatient(nextPatient.queue_number, department, nextPatient.full_name)
     } catch (error) {
       console.error('Failed to call next patient:', error)
     }

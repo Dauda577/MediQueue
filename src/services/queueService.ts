@@ -6,16 +6,6 @@ import type {
   CallAlert,
   DashboardStats,
 } from '../types'
-import {
-  mockPatients,
-  mockQueueEntries,
-  mockStaffMembers,
-  mockCallAlerts,
-  mockDashboardStats,
-  mockDepartments,
-} from '../data/mockData'
-
-const USE_MOCK_DATA = false // flip to false when ready to go live
 
 type Department = 'OPD' | 'Lab' | 'Pharmacy' | 'Maternity'
 
@@ -94,10 +84,10 @@ export const queueService = {
 
     if (error) throw error
 
-    return data.map((p: QueueEntry) => ({
+    return data.map((p) => ({
       ...p,
       wait_time_minutes: p.position * 4,
-    })) as QueueEntry[]
+    })) as unknown as QueueEntry[]
   },
 
   async getPatientQueue(patientId: string): Promise<QueueEntry | null> {
