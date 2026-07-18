@@ -39,10 +39,16 @@ export const queueService = {
     })
 
     if (error) {
-      console.error('[CHECKIN_RPC] Supabase error:', { message: error.message, details: error.details, hint: error.hint, code: error.code })
+      console.error('[CHECKIN_RPC] Supabase error:', JSON.stringify(error, Object.getOwnPropertyNames(error)))
+      console.error('[CHECKIN_RPC] Supabase error keys:', Object.keys(error))
       throw error
     }
-    return data as unknown as Patient
+
+    if (!data || !Array.isArray(data) || data.length === 0) {
+      throw new Error('No patient data returned from server.')
+    }
+
+    return data[0] as unknown as Patient
   },
 
   // QUEUE OPERATIONS

@@ -191,7 +191,7 @@ export type Database = {
     Functions: {
       check_in_patient: {
         Args: { p_full_name: string; p_department: Database["public"]["Enums"]["stage"]; p_phone?: string; p_priority?: Database["public"]["Enums"]["patient_priority"] }
-        Returns: Json
+        Returns: Database["public"]["Tables"]["patients"]["Row"]
       }
       get_hourly_checkins: {
         Args: { date: string }
