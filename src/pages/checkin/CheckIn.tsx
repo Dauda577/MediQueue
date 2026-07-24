@@ -54,30 +54,6 @@ const LiveDot: React.FC = () => (
   />
 );
 
-// ─── Custom hooks ─────────────────────────────────────────────────────────────
-
-function useCountUp(end: number, duration = 1000, startCounting = false): number {
-  const [count, setCount] = useState(0);
-
-  useEffect(() => {
-    if (!startCounting) return;
-    let startTime: number | null = null;
-    let raf: number;
-
-    const animate = (timestamp: number) => {
-      if (!startTime) startTime = timestamp;
-      const progress = Math.min((timestamp - startTime) / duration, 1);
-      setCount(Math.floor(progress * end));
-      if (progress < 1) raf = requestAnimationFrame(animate);
-    };
-
-    raf = requestAnimationFrame(animate);
-    return () => cancelAnimationFrame(raf);
-  }, [end, duration, startCounting]);
-
-  return count;
-}
-
 // ─── Main component ───────────────────────────────────────────────────────────
 
 export default function CheckIn() {
@@ -119,14 +95,6 @@ export default function CheckIn() {
   useRealtimeQueue({ onUpdate: fetchDeptStats })
 
   useEffect(() => { fetchDeptStats() }, [fetchDeptStats])
-
-  // Overall avg from live stats
-  const overallAvgWait = Math.round(
-    Object.values(deptStats).reduce((sum, s) => sum + s.avgWaitMins, 0) /
-    (Object.values(deptStats).filter(s => s.waiting > 0).length || 1)
-  );
-
-  const animatedWaitTime = useCountUp(overallAvgWait, 1500, true);
 
   // ── Validation ──
   const validate = useCallback((): boolean => {
@@ -454,8 +422,14 @@ export default function CheckIn() {
                 <circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/>
               </svg>
               <div>
-                <p className="ci-status-label">Avg. Wait Across All Depts</p>
-                <p className="ci-status-time">{animatedWaitTime} Mins</p>
+                <p className="ci-status-label">
+                  {department ? `${department} Queue` : 'Select a Department'}
+                </p>
+                <p className="ci-status-time">
+                  {department
+                    ? `${deptStats[department].waiting} patient${deptStats[department].waiting !== 1 ? 's' : ''} ahead`
+                    : '—'}
+                </p>
               </div>
             </div>
 
@@ -466,11 +440,13 @@ export default function CheckIn() {
                 <LiveDot />
                 LIVE
               </span>
-              <span className="ci-status-subtitle">Queue Status</span>
+              <span className="ci-status-subtitle">
+                {department ? `${deptStats[department].waiting === 0 ? 'No wait' : `~${deptStats[department].avgWaitMins} min wait`}` : 'Queue Status'}
+              </span>
             </div>
 
             <div className="ci-status-items">
-              {DEPARTMENTS.map((dept, index) => {
+              {DEPARTMENTS.filter(d => !department || d.id === department).map((dept, index) => {
                 const stats = deptStats[dept.id];
                 return (
                   <motion.div
