@@ -1,8 +1,9 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useRealtimeQueue } from '../../hooks/useRealtimeQueue'
 import { queueService } from '../../services/queueService'
+import { supabase } from '../../lib/supabase'
 import './CheckIn.css';
 
 
@@ -96,6 +97,24 @@ export default function CheckIn() {
 
   useEffect(() => { fetchDeptStats() }, [fetchDeptStats])
 
+  // ── Redirect if user already has an active booking ──
+  const redirectGuard = useRef(false)
+
+  useEffect(() => {
+    if (redirectGuard.current) return
+    const stored = localStorage.getItem('activeToken')
+    if (!stored) return
+
+    redirectGuard.current = true
+    supabase.from('patients').select('token_id, status').eq('token_id', stored).maybeSingle().then(({ data }) => {
+      if (data && data.status !== 'done' && data.status !== 'cancelled') {
+        navigate(`/queue/${data.token_id}`, { replace: true })
+      } else {
+        localStorage.removeItem('activeToken')
+      }
+    })
+  }, [navigate])
+
   // ── Validation ──
   const validate = useCallback((): boolean => {
     const errors: { name?: string; phone?: string } = {};
@@ -131,7 +150,9 @@ export default function CheckIn() {
         }
       );
 
+      localStorage.setItem('activeToken', patient.token_id)
       navigate(`/queue/${patient.token_id}`, {
+        replace: true,
         state: {
           fullName:   patient.full_name,
           phone:      patient.phone,
