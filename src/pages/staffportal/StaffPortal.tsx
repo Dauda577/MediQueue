@@ -1,12 +1,49 @@
-import { useState, useEffect, useCallback } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
+import {
+  AlertTriangle,
+  ArrowRight,
+  CheckCircle2,
+  Clock3,
+  Download,
+  LogOut,
+  UserRound,
+  Users,
+} from 'lucide-react'
 import { useAuth } from '../../context/AuthContext'
 import { useRealtimeQueue } from '../../hooks/useRealtimeQueue'
-import { queueService } from '../../services/queueService'
 import { announcePatient } from '../../lib/announce'
+import { queueService } from '../../services/queueService'
 import type { QueueEntry } from '../../types'
 import './StaffPortal.css'
 
 type Department = 'OPD' | 'Lab' | 'Pharmacy' | 'Maternity'
+
+const priorityRank: Record<QueueEntry['priority'], number> = {
+  emergency: 0,
+  priority: 1,
+  normal: 2,
+}
+
+function getInitials(name: string) {
+  return name
+    .split(' ')
+    .filter(Boolean)
+    .slice(0, 2)
+    .map((word) => word[0]?.toUpperCase() ?? '')
+    .join('')
+}
+
+function formatClock(value: Date) {
+  return value.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+}
+
+function formatDate(value: Date) {
+  return value.toLocaleDateString([], { weekday: 'short', month: 'short', day: 'numeric' })
+}
+
+function formatTimeLabel(value: string) {
+  return new Date(value).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })
+}
 
 export default function StaffPortal() {
   const { staff, loading: authLoading } = useAuth()
@@ -14,6 +51,10 @@ export default function StaffPortal() {
   const [loading, setLoading] = useState(true)
   const [department, setDepartment] = useState<Department>('OPD')
   const [currentServing, setCurrentServing] = useState<QueueEntry | null>(null)
+  const [seenToday, setSeenToday] = useState(0)
+  const [announcement, setAnnouncement] = useState<string | null>(null)
+  const [sessionTime, setSessionTime] = useState(new Date())
+  const [consultElapsed, setConsultElapsed] = useState(0)
 
   useEffect(() => {
     if (staff?.department) {
@@ -40,19 +81,72 @@ export default function StaffPortal() {
     fetchQueue()
   }, [fetchQueue])
 
+  useEffect(() => {
+    const interval = window.setInterval(() => {
+      setSessionTime(new Date())
+      setQueue((prev) => prev.map((entry) => ({ ...entry, wait_time_minutes: entry.wait_time_minutes + 1 })))
+    }, 60000)
+
+    return () => window.clearInterval(interval)
+  }, [])
+
+  useEffect(() => {
+    if (!currentServing) {
+      setConsultElapsed(0)
+      return
+    }
+
+    const interval = window.setInterval(() => {
+      setConsultElapsed((prev) => prev + 1)
+    }, 30000)
+
+    return () => window.clearInterval(interval)
+  }, [currentServing])
+
+  const sortedQueue = useMemo(() => {
+    return [...queue].sort((left, right) => {
+      const priorityDiff = priorityRank[left.priority] - priorityRank[right.priority]
+      if (priorityDiff !== 0) return priorityDiff
+      return right.wait_time_minutes - left.wait_time_minutes
+    })
+  }, [queue])
+
+  const urgentCount = queue.filter((entry) => entry.priority === 'emergency').length
+  const avgWait = queue.length > 0 ? Math.round(queue.reduce((sum, entry) => sum + entry.wait_time_minutes, 0) / queue.length) : 0
+
+  const showAnnouncement = useCallback((message: string) => {
+    setAnnouncement(message)
+    window.setTimeout(() => setAnnouncement(null), 4500)
+  }, [])
+
   const handleCallNext = async () => {
+    if (queue.length === 0) return
+
     try {
       const nextPatient = await queueService.callNextPatient(department)
+      setQueue((prev) => prev.filter((entry) => entry.id !== nextPatient.id))
       setCurrentServing(nextPatient)
+      setConsultElapsed(0)
       announcePatient(nextPatient.queue_number, department, nextPatient.full_name)
+      showAnnouncement(`Now calling ${nextPatient.full_name} • #${nextPatient.queue_number}`)
     } catch (error) {
       console.error('Failed to call next patient:', error)
     }
   }
 
-  const highPriorityCount = queue.filter((entry) => entry.priority === 'emergency' || entry.priority === 'priority').length
-  const avgWait = queue.length > 0 ? Math.round(queue.reduce((sum, entry) => sum + entry.wait_time_minutes, 0) / queue.length) : 0
-  const seenToday = 0
+  const handleSelectPatient = (entry: QueueEntry) => {
+    setQueue((prev) => {
+      const nextQueue = [...prev]
+      if (currentServing) {
+        nextQueue.push(currentServing)
+      }
+      return nextQueue.filter((item) => item.id !== entry.id)
+    })
+
+    setCurrentServing(entry)
+    setConsultElapsed(0)
+    showAnnouncement(`Selected ${entry.full_name} • #${entry.queue_number}`)
+  }
 
   const handleMarkServed = async () => {
     if (!currentServing) return
@@ -60,193 +154,293 @@ export default function StaffPortal() {
     try {
       await queueService.markAsServed(currentServing.id)
       setCurrentServing(null)
+      setSeenToday((prev) => prev + 1)
+      setConsultElapsed(0)
+      showAnnouncement(`${currentServing.full_name} marked as served`)
     } catch (error) {
       console.error('Failed to mark patient as served:', error)
     }
   }
 
   if (authLoading || loading) {
-    return (
-      <div className="staff-portal-loading">
-        Loading staff dashboard...
-      </div>
-    )
+    return <div className="staff-portal-loading">Loading staff dashboard...</div>
   }
 
   if (!staff) {
     return <div className="staff-portal-message">Please sign in to continue.</div>
   }
 
-  if (staff.role === 'admin') {
-    return <div className="staff-portal-message">Admins use the separate admin dashboard.</div>
-  }
-
   return (
     <div className="staff-portal-page">
       <div className="staff-portal-shell">
-        <section className="staff-portal-hero card">
-          <div className="hero-top">
+        <aside className="staff-sidebar">
+          <div className="sidebar-brand">
+            <div className="sidebar-logo">
+              <div className="sidebar-logo-inner">
+                <Users size={18} />
+              </div>
+            </div>
             <div>
-              <p className="staff-portal-subtitle">Queue Dashboard</p>
-              <h1>Welcome back, {staff.name}</h1>
-              <p className="staff-portal-userline">
-                {staff.role.charAt(0).toUpperCase() + staff.role.slice(1).replace('_', ' ')} • Department: {department}
-              </p>
-            </div>
-            <div className="hero-chip">Realtime queue</div>
-          </div>
-
-          <div className="hero-stats">
-            <div className="hero-stat-card">
-              <p className="hero-stat-title">Now waiting</p>
-              <p className="hero-stat-number">{queue.length}</p>
-            </div>
-            <div className="hero-stat-card">
-              <p className="hero-stat-title">Average wait</p>
-              <p className="hero-stat-number">{avgWait} min</p>
-            </div>
-            <div className="hero-stat-card">
-              <p className="hero-stat-title">Urgent</p>
-              <p className="hero-stat-number">{highPriorityCount}</p>
+              <p className="sidebar-title">MediQueue</p>
+              <p className="sidebar-subtitle">Staff Portal</p>
             </div>
           </div>
-        </section>
 
-        <section className="staff-portal-metrics">
-          <article className="metric-card metric-call">
-            <p className="metric-card-title">Call Next Patient</p>
-            <h2 className="metric-card-value-medium">Start the next consultation</h2>
-            <button className="staff-btn staff-btn-primary" onClick={handleCallNext}>
-              📞 Call Next Patient
-            </button>
-          </article>
-          <article className="metric-card">
-            <p className="metric-card-title">Waiting Today</p>
-            <p className="metric-card-value">{queue.length}</p>
-            <p className="metric-card-note">Patients currently in the queue</p>
-          </article>
-          <article className="metric-card">
-            <p className="metric-card-title">High Priority</p>
-            <p className="metric-card-value">{highPriorityCount}</p>
-            <p className="metric-card-note">Emergency or priority cases</p>
-          </article>
-          <article className="metric-card">
-            <p className="metric-card-title">Seen Today</p>
-            <p className="metric-card-value">{seenToday}</p>
-            <p className="metric-card-note">Updated in real time</p>
-          </article>
-        </section>
-
-        <div className="staff-portal-grid">
-          <section className="card staff-portal-current">
-            <div className="staff-portal-section-head">
-              <h2>Current Patient</h2>
-              <span>Live service status</span>
+          <div className="sidebar-profile">
+            <div className="sidebar-avatar">{getInitials(staff.name)}</div>
+            <div>
+              <p className="sidebar-profile-name">{staff.name}</p>
+              <p className="sidebar-profile-role">{(staff.role || 'staff').replace('_', ' ')}</p>
             </div>
+            <div className="sidebar-badge">
+              <span>Department</span>
+              <strong>{department}</strong>
+            </div>
+          </div>
 
-            {currentServing ? (
-              <div className="staff-portal-serving-card">
-                <p className="staff-portal-label">Now Serving</p>
-                <h3>{currentServing.full_name}</h3>
-                <div className="patient-details-grid">
-                  <div className="detail-item">
-                    <span>Queue #</span>
-                    <strong>#{currentServing.queue_number}</strong>
-                  </div>
-                  <div className="detail-item">
-                    <span>Priority</span>
-                    <strong>{currentServing.priority}</strong>
-                  </div>
-                  <div className="detail-item">
-                    <span>Position</span>
-                    <strong>{currentServing.position}</strong>
-                  </div>
-                  <div className="detail-item">
-                    <span>Wait time</span>
-                    <strong>{currentServing.wait_time_minutes} min</strong>
+          <div className="sidebar-section">
+            <div className="sidebar-section-head">
+              <span className="live-dot" />
+              <span>Live Queue</span>
+            </div>
+            <div className="sidebar-stat-row">
+              <span>Waiting</span>
+              <strong>{queue.length}</strong>
+            </div>
+            <div className="sidebar-stat-row">
+              <span>Avg wait</span>
+              <strong>{avgWait}m</strong>
+            </div>
+            <div className="sidebar-stat-row">
+              <span>Urgent</span>
+              <strong>{urgentCount}</strong>
+            </div>
+          </div>
+
+          <div className="sidebar-clock">
+            <p className="clock-time">{formatClock(sessionTime)}</p>
+            <p className="clock-date">{formatDate(sessionTime)}</p>
+          </div>
+
+          <button className="sidebar-signout" type="button">
+            <LogOut size={15} />
+            Sign out
+          </button>
+        </aside>
+
+        <main className="staff-main">
+          <header className="staff-main-header">
+            <div>
+              <h1>Staff Dashboard — {department}</h1>
+              <p>Welcome back, {staff.name.split(' ')[0] || staff.name}</p>
+            </div>
+            {announcement ? (
+              <div className="announcement-toast">
+                <Download size={13} />
+                <span>{announcement}</span>
+              </div>
+            ) : null}
+          </header>
+
+          <div className="staff-content">
+            <section className="metric-grid">
+              <article className="metric-card">
+                <div className="metric-card-head">
+                  <span>Waiting</span>
+                  <div className="metric-icon teal">
+                    <Users size={16} />
                   </div>
                 </div>
-                <button className="staff-btn staff-btn-success" onClick={handleMarkServed}>
-                  Mark Served
+                <p className="metric-number">{queue.length}</p>
+                <p className="metric-label">Patients waiting</p>
+              </article>
+              <article className="metric-card">
+                <div className="metric-card-head">
+                  <span>Avg Wait</span>
+                  <div className="metric-icon amber">
+                    <Clock3 size={16} />
+                  </div>
+                </div>
+                <p className={`metric-number ${avgWait > 30 ? 'danger' : ''}`}>{avgWait}m</p>
+                <p className="metric-label">Average wait time</p>
+              </article>
+              <article className="metric-card">
+                <div className="metric-card-head">
+                  <span>Urgent</span>
+                  <div className="metric-icon danger">
+                    <AlertTriangle size={16} />
+                  </div>
+                </div>
+                <p className={`metric-number ${urgentCount > 0 ? 'danger' : ''}`}>{urgentCount}</p>
+                <p className="metric-label">High priority cases</p>
+              </article>
+              <article className="metric-card">
+                <div className="metric-card-head">
+                  <span>Seen Today</span>
+                  <div className="metric-icon green">
+                    <CheckCircle2 size={16} />
+                  </div>
+                </div>
+                <p className="metric-number green">{seenToday}</p>
+                <p className="metric-label">Patients served</p>
+              </article>
+            </section>
+
+            <section className="consult-grid">
+              <article className="panel current-patient-panel">
+                <div className="panel-head">
+                  <h2>Current Patient</h2>
+                  {currentServing ? (
+                    <span className={`priority-badge ${currentServing.priority}`}>{currentServing.priority.toUpperCase()}</span>
+                  ) : null}
+                </div>
+
+                {currentServing ? (
+                  <div className="current-patient-card">
+                    <div className="patient-avatar">{getInitials(currentServing.full_name)}</div>
+                    <div className="patient-info">
+                      <h3>{currentServing.full_name}</h3>
+                      <p>Consultation in progress</p>
+                    </div>
+                    <div className="patient-stats">
+                      <div className="stat-cell">
+                        <span>Queue No.</span>
+                        <strong>#{currentServing.queue_number}</strong>
+                      </div>
+                      <div className="stat-cell">
+                        <span>Priority</span>
+                        <strong>{currentServing.priority}</strong>
+                      </div>
+                      <div className="stat-cell">
+                        <span>Waited</span>
+                        <strong>{currentServing.wait_time_minutes}m</strong>
+                      </div>
+                      <div className="stat-cell">
+                        <span>In Consult</span>
+                        <strong>{consultElapsed < 1 ? '0m' : `${consultElapsed}m`}</strong>
+                      </div>
+                    </div>
+                    <div className="patient-footer">
+                      <span>Arrived {formatTimeLabel(currentServing.checked_in_at)}</span>
+                      <span>{department}</span>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="empty-state">
+                    <div className="empty-icon">
+                      <UserRound size={20} />
+                    </div>
+                    <p>No patient in consultation</p>
+                    <span>Call the next patient to begin the next visit.</span>
+                  </div>
+                )}
+              </article>
+
+              <div className="action-stack">
+                <button
+                  className={`action-card teal ${queue.length === 0 ? 'disabled' : ''}`}
+                  type="button"
+                  onClick={handleCallNext}
+                  disabled={queue.length === 0}
+                >
+                  <div className="action-icon">
+                    <ArrowRight size={16} />
+                  </div>
+                  <div>
+                    <p>Call Next Patient</p>
+                    <span>{sortedQueue[0] ? `${sortedQueue[0].full_name} • #${sortedQueue[0].queue_number}` : 'Queue is empty'}</span>
+                  </div>
                 </button>
-              </div>
-            ) : (
-              <div className="staff-portal-empty-state">
-                <p className="empty-title">Ready for the next patient</p>
-                <p>Use the button above to call the next person in line.</p>
-              </div>
-            )}
-          </section>
 
-          <aside className="card staff-portal-summary">
-            <div className="staff-portal-section-head">
-              <h2>Summary</h2>
-              <span>Department snapshot</span>
-            </div>
-            <div className="staff-portal-summary-list">
-              <div className="staff-portal-summary-item">
-                <span>Waiting</span>
-                <strong>{queue.length}</strong>
-              </div>
-              <div className="staff-portal-summary-item">
-                <span>Average wait</span>
-                <strong>{avgWait} min</strong>
-              </div>
-              <div className="staff-portal-summary-item">
-                <span>Urgent patients</span>
-                <strong>{highPriorityCount}</strong>
-              </div>
-              <div className="staff-portal-summary-item">
-                <span>Seen today</span>
-                <strong>{seenToday}</strong>
-              </div>
-            </div>
-          </aside>
-        </div>
+                <button
+                  className={`action-card green ${!currentServing ? 'disabled' : ''}`}
+                  type="button"
+                  onClick={handleMarkServed}
+                  disabled={!currentServing}
+                >
+                  <div className="action-icon">
+                    <CheckCircle2 size={16} />
+                  </div>
+                  <div>
+                    <p>Mark as Served</p>
+                    <span>{currentServing ? `${currentServing.full_name} • #${currentServing.queue_number}` : 'No active patient'}</span>
+                  </div>
+                </button>
 
-        <section className="card staff-portal-table-card">
-          <div className="staff-portal-section-head">
-            <h2>Waiting Patients</h2>
-            <span>{queue.length} patient{queue.length === 1 ? '' : 's'} waiting</span>
+                <div className="up-next-card">
+                  <p className="up-next-label">Up Next</p>
+                  {sortedQueue.slice(0, 2).map((entry) => (
+                    <div key={entry.id} className="up-next-row">
+                      <div>
+                        <p className="up-next-number">#{entry.queue_number}</p>
+                        <p className="up-next-name">{entry.full_name}</p>
+                      </div>
+                      <span className={`priority-pill ${entry.priority}`}>{entry.priority.toUpperCase()}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </section>
+
+            <section className="table-card">
+              <div className="table-head">
+                <div>
+                  <h2>Waiting Patients</h2>
+                  <span className="table-count">{queue.length} active</span>
+                </div>
+                <div className="table-status">
+                  <span className="live-dot" />
+                  <span>LIVE</span>
+                </div>
+              </div>
+
+              <div className="table-wrapper">
+                <table className="staff-table">
+                  <thead>
+                    <tr>
+                      <th>Queue No.</th>
+                      <th>Patient</th>
+                      <th>Priority</th>
+                      <th>Position</th>
+                      <th>Wait</th>
+                      <th>Arrived</th>
+                      <th>Action</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {sortedQueue.map((entry) => (
+                      <tr key={entry.id} className={currentServing?.id === entry.id ? 'serving-row' : ''}>
+                        <td className="queue-number">#{entry.queue_number}</td>
+                        <td>
+                          <div className="patient-cell">
+                            <div className="cell-avatar">{getInitials(entry.full_name)}</div>
+                            <div>
+                              <p>{entry.full_name}</p>
+                              <span>{department}</span>
+                            </div>
+                          </div>
+                        </td>
+                        <td>
+                          <span className={`priority-pill ${entry.priority}`}>{entry.priority.toUpperCase()}</span>
+                        </td>
+                        <td className="mono-cell">#{entry.position}</td>
+                        <td className={`mono-cell ${entry.wait_time_minutes > 40 ? 'danger' : entry.wait_time_minutes > 20 ? 'amber' : ''}`}>
+                          {entry.wait_time_minutes}m
+                        </td>
+                        <td className="mono-cell">{formatTimeLabel(entry.checked_in_at)}</td>
+                        <td>
+                          <button className="select-btn" type="button" onClick={() => handleSelectPatient(entry)}>
+                            Select
+                          </button>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </section>
           </div>
-
-          {queue.length === 0 ? (
-            <div className="staff-portal-empty-table">
-              <p className="empty-title">Queue is clear</p>
-              <p>There are no waiting patients in your department.</p>
-            </div>
-          ) : (
-            <table className="staff-portal-table">
-              <thead>
-                <tr>
-                  <th>Patient</th>
-                  <th>Queue #</th>
-                  <th>Priority</th>
-                  <th>Wait</th>
-                  <th>Action</th>
-                </tr>
-              </thead>
-              <tbody>
-                {queue.map((entry) => (
-                  <tr key={entry.id} className={currentServing?.id === entry.id ? 'selected-row' : ''}>
-                    <td>{entry.full_name}</td>
-                    <td>#{entry.queue_number}</td>
-                    <td>{entry.priority}</td>
-                    <td>{entry.wait_time_minutes}m</td>
-                    <td>
-                      <button
-                        className="staff-btn staff-btn-secondary"
-                        onClick={() => setCurrentServing(entry)}
-                      >
-                        Select
-                      </button>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          )}
-        </section>
+        </main>
       </div>
     </div>
   )

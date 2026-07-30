@@ -147,7 +147,6 @@ export const queueService = {
     const { data, error } = await supabase
       .from('staff_members')
       .select('*')
-      .eq('is_active', true)
 
     if (error) throw error
     return data
