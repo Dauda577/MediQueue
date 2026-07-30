@@ -142,23 +142,30 @@ export default function QueueTracker() {
 
     const today = new Date().toISOString().split('T')[0]
 
-    const [patientRes, queueRes, statsRes] = await Promise.all([
+    const [patientRes] = await Promise.all([
       supabase.from('patients').select('*').eq('token_id', tokenId).maybeSingle(),
+    ])
+
+    if (patientRes.error) throw patientRes.error
+    if (!patientRes.data) return
+
+    const dept = patientRes.data.initial_department
+
+    const [queueRes, statsRes] = await Promise.all([
       supabase.from('patients')
         .select('id', { count: 'exact', head: true })
+        .eq('current_stage', dept)
         .eq('status', 'waiting')
         .gte('checked_in_at', today),
       Promise.all([
         supabase.from('patients')
           .select('id', { count: 'exact', head: true })
+          .eq('initial_department', dept)
           .eq('status', 'done')
           .gte('checked_in_at', today),
-        supabase.from('staff_members').select('id').eq('role', 'doctor').eq('is_active', true),
+        supabase.from('staff_members').select('id').eq('department', dept).eq('role', 'doctor').eq('is_active', true),
       ]),
     ])
-
-    if (patientRes.error) throw patientRes.error
-    if (!patientRes.data) return
 
     const totalInQueue = queueRes.count ?? 0
     const servedCount = statsRes[0].count ?? 0
@@ -188,7 +195,12 @@ export default function QueueTracker() {
           table: 'patients',
           filter: `token_id=eq.${queueData.tokenId}`,
         },
-        () => { fetchAll(queueData.tokenId) }
+        (payload: { new: { status: string } }) => {
+          if (payload.new.status === 'done' || payload.new.status === 'cancelled') {
+            localStorage.removeItem('activeToken')
+          }
+          fetchAll(queueData.tokenId)
+        }
       )
       .subscribe()
 
@@ -438,9 +450,9 @@ export default function QueueTracker() {
         </div>
 
         {/* ── Sidebar (desktop only) ── */}
-        <div className="qt-sidebar">
+          <div className="qt-sidebar">
           <div className="qt-sidebar-panel">
-            <p className="qt-sidebar-panel-title">Queue Overview</p>
+            <p className="qt-sidebar-panel-title">{queueData.department} Queue</p>
 
             <div className="qt-sidebar-live">
               <span className="qt-sidebar-live-dot" />
@@ -448,7 +460,7 @@ export default function QueueTracker() {
             </div>
 
             <div className="qt-sidebar-stat">
-              <span className="qt-sidebar-stat-label">Patients Served Today</span>
+              <span className="qt-sidebar-stat-label">{queueData.department} Patients Served Today</span>
               <span className="qt-sidebar-stat-val">{stats.served}</span>
               <span className="qt-sidebar-stat-sub">Since 8:00 AM</span>
             </div>
@@ -456,11 +468,11 @@ export default function QueueTracker() {
             <div className="qt-sidebar-divider" />
 
             <div className="qt-sidebar-row">
-              <span className="qt-sidebar-row-label">Avg. Wait Time</span>
+              <span className="qt-sidebar-row-label">{queueData.department} Avg. Wait</span>
               <span className="qt-sidebar-row-val">{stats.avgWait} min</span>
             </div>
             <div className="qt-sidebar-row">
-              <span className="qt-sidebar-row-label">Doctors Online</span>
+              <span className="qt-sidebar-row-label">Doctors in {queueData.department}</span>
               <span className="qt-sidebar-row-val qt-sidebar-row-val--success">{stats.doctorsOnline} active</span>
             </div>
             <div className="qt-sidebar-row">
