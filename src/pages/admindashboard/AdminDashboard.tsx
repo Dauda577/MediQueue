@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from 'react'
 import {
-  Stethoscope, Bell, Pause, Play, Search, X, Check, Zap, Star,
+  Bell, Pause, Play, Search, X, Check, Zap, Star,
   ChevronUp, ChevronDown, Download, Users, Phone, Inbox,
   UserCircle, AlertTriangle, AlertCircle, Info,
 } from 'lucide-react'
@@ -280,7 +280,9 @@ export default function App() {
       <nav className="ad-nav">
         <div className="ad-nav-inner">
           <div className="ad-brand">
-            <div className="ad-brand-icon"><Stethoscope size={16} color="white"/></div>
+            <div className="ad-brand-icon" aria-label="Medical icon">
+              <span aria-hidden="true">⚕️</span>
+            </div>
             <span className="ad-brand-name">MediQueue Admin</span>
           </div>
 

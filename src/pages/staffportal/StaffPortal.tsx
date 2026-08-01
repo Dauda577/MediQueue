@@ -176,14 +176,19 @@ export default function StaffPortal() {
         <aside className="staff-sidebar">
           <div className="sidebar-brand">
             <div className="sidebar-logo">
-              <div className="sidebar-logo-inner">
-                <Users size={18} />
+              <div className="sidebar-logo-inner" aria-label="Medical icon">
+                <span aria-hidden="true">⚕️</span>
               </div>
             </div>
             <div>
               <p className="sidebar-title">MediQueue</p>
               <p className="sidebar-subtitle">Staff Portal</p>
             </div>
+          </div>
+
+          <div className="sidebar-dashboard-header">
+            <h1>Central Medical — {department}</h1>
+            <p>Welcome back, {staff.name.split(' ')[0] || staff.name}</p>
           </div>
 
           <div className="sidebar-profile">
@@ -221,19 +226,10 @@ export default function StaffPortal() {
             <p className="clock-time">{formatClock(sessionTime)}</p>
             <p className="clock-date">{formatDate(sessionTime)}</p>
           </div>
-
-          <button className="sidebar-signout" type="button">
-            <LogOut size={15} />
-            Sign out
-          </button>
         </aside>
 
         <main className="staff-main">
           <header className="staff-main-header">
-            <div>
-              <h1>Staff Dashboard — {department}</h1>
-              <p>Welcome back, {staff.name.split(' ')[0] || staff.name}</p>
-            </div>
             {announcement ? (
               <div className="announcement-toast">
                 <Download size={13} />
@@ -439,6 +435,11 @@ export default function StaffPortal() {
                 </table>
               </div>
             </section>
+
+            <button className="sidebar-signout" type="button">
+              <LogOut size={15} />
+              Sign out
+            </button>
           </div>
         </main>
       </div>
