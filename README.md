@@ -1,73 +1,101 @@
-# React + TypeScript + Vite
+# MediQueue — Hospital Queue Management System
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+A web-based hospital queue management system built with React, TypeScript, and Supabase. Designed to digitize patient check-in, provide real-time queue tracking, and streamline staff workflows across hospital departments.
 
-Currently, two official plugins are available:
+## Tech Stack
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Oxc](https://oxc.rs)
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/)
+- **Frontend**: React 19 + TypeScript + Vite + Tailwind CSS 4
+- **Backend**: Supabase (PostgreSQL, Auth, Realtime subscriptions)
+- **UI Libraries**: Framer Motion, Lucide React, React Router DOM v7
+- **SMS**: Arkesel API (Ghana)
 
-## React Compiler
+## Features
 
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
+### Patient-Facing
+- **Digital Check-In** — Select department, enter details, get queue number
+- **Real-Time Queue Tracker** — Live position updates via Supabase Realtime
+- **Icon-Based Stage Stepper** — Visual progress through check-in → consult → lab → pharmacy → done
+- **Phone Deduplication** — Same phone number finds existing active token
+- **SMS Notifications** — Token sent via SMS on check-in, reminder when called
+- **Audio Alerts** — "Now serving" tone when your turn approaches
+- **Mobile Responsive** — Works on phones and tablets
 
-## Expanding the ESLint configuration
+### Staff Portal
+- **Call Next Patient** — Call, select, or mark patients as served
+- **Multi-Stage Journey** — Send patients to Lab, Pharmacy, or mark visit complete
+- **Auto Re-queue** — No-show button sends patient back to waiting queue
+- **Staff Assignment** — Patients automatically assigned to the staff who called them
+- **Live Queue View** — Real-time waiting list per department
+- **Priority Handling** — Emergency and priority patient flags
 
-If you are developing a production application, we recommend updating the configuration to enable type-aware lint rules:
+### Admin Dashboard
+- **Queue Management** — Search, filter, reorder, batch actions
+- **Department-Scoped KPIs** — Stats filtered by selected department
+- **Reports & Analytics** — Department breakdown, status distribution, hourly check-ins
+- **Staff Management** — Invite staff (creates real Supabase Auth accounts), view roster
+- **Emergency Override** — Flag patients as emergency with audit logging
+- **Patient-Staff Mapping** — See which staff member is assigned to each patient
 
-```js
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
+## Getting Started
 
-      // Remove tseslint.configs.recommended and replace with this
-      tseslint.configs.recommendedTypeChecked,
-      // Alternatively, use this for stricter rules
-      tseslint.configs.strictTypeChecked,
-      // Optionally, add this for stylistic rules
-      tseslint.configs.stylisticTypeChecked,
-
-      // Other configs...
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
+```bash
+npm install
+cp .env.production .env  # configure Supabase credentials
+npm run dev               # start dev server at http://localhost:5173
 ```
 
-You can also install [eslint-plugin-react-x](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-x) and [eslint-plugin-react-dom](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-dom) for React-specific lint rules:
+## Environment Variables
 
-```js
-// eslint.config.js
-import reactX from 'eslint-plugin-react-x'
-import reactDom from 'eslint-plugin-react-dom'
+Create a `.env` file with:
 
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
-      // Enable lint rules for React
-      reactX.configs['recommended-typescript'],
-      // Enable lint rules for React DOM
-      reactDom.configs.recommended,
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
 ```
+VITE_SUPABASE_URL=https://your-project.supabase.co
+VITE_SUPABASE_ANON_KEY=your-anon-key
+```
+
+## Demo Accounts
+
+| Role | Email | Password |
+|------|-------|----------|
+| Nurse | staff@demo.com | staff1234 |
+| Doctor | doctor@demo.com | doctor1234 |
+| Pharmacist | pharmacist@demo.com | pharma1234 |
+| Lab Tech | lab@demo.com | lab1234 |
+
+## Project Structure
+
+```
+src/
+├── pages/
+│   ├── checkin/          # Patient self check-in + phone dedup
+│   ├── queuetracker/     # Live queue position tracker with icons
+│   ├── login/            # General login
+│   ├── adminlogin/       # Admin-only login
+│   ├── stafflogin/       # Staff-only login
+│   ├── staffportal/      # Staff dashboard + multi-stage
+│   ├── admindashboard/   # Admin control panel
+│   ├── emergencyoverride/ # Emergency flagging with audit
+│   ├── acceptinvite/     # Staff invite activation
+│   └── notfound/         # 404 page
+├── services/             # Supabase API layer
+├── hooks/                # Realtime subscriptions
+├── context/              # Auth state management
+├── lib/                  # Supabase client, auth utils, invite
+├── types/                # TypeScript definitions
+└── styles/               # Design tokens
+supabase/
+└── migrations/           # Database schema + RLS + indexes
+```
+
+## Build & Deploy
+
+```bash
+npm run build    # TypeScript check + Vite production build
+npm run preview  # Preview production build locally
+```
+
+Deployed to Netlify with automatic CI/CD from GitHub.
+
+## License
+
+Private — Mini Project, Kwame Nkrumah University of Science and Technology, 2026.
