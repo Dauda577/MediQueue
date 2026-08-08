@@ -1,102 +1,59 @@
-import { useState, useEffect } from 'react';
-import { useNavigate, Link } from 'react-router-dom';
-import { signIn, getCurrentStaff } from '../../lib/auth';
-import { useAuth } from '../../context/AuthContext';
-import '../login/Login.css';
+import { useState, useEffect } from 'react'
+import { useNavigate, Link } from 'react-router-dom'
+import { motion } from 'framer-motion'
+import { Mail, Lock, ArrowRight } from 'lucide-react'
+import { signIn, getCurrentStaff } from '../../lib/auth'
+import { useAuth } from '../../context/AuthContext'
+import '../login/Login.css'
 
 export default function StaffLogin() {
-  const navigate = useNavigate();
-  const { staff } = useAuth();
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
-  const [error, setError] = useState<string | null>(null);
-  const [loading, setLoading] = useState(false);
+  const navigate = useNavigate()
+  const { staff } = useAuth()
+  const [email, setEmail] = useState('')
+  const [password, setPassword] = useState('')
+  const [error, setError] = useState<string | null>(null)
+  const [loading, setLoading] = useState(false)
 
-  useEffect(() => {
-    if (staff && staff.role !== 'admin') {
-      navigate('/staff', { replace: true });
-    }
-  }, [staff, navigate]);
+  useEffect(() => { if (staff && staff.role !== 'admin') navigate('/staff', { replace: true }) }, [staff, navigate])
 
   async function handleLogin() {
-    setError(null);
-    setLoading(true);
-
+    setError(null); setLoading(true)
     try {
-      await signIn(email, password);
-      const staffMember = await getCurrentStaff();
-      if (!staffMember) {
-        throw new Error('No staff record found for this account.');
-      }
-
-      if (staffMember.role === 'admin') {
-        throw new Error('Access denied. This portal is for staff only.');
-      }
-
-      window.location.assign('/staff');
-    } catch (err: any) {
-      setError(err.message || 'Invalid email or password');
-    } finally {
-      setLoading(false);
-    }
+      await signIn(email, password)
+      const staffMember = await getCurrentStaff()
+      if (!staffMember) throw new Error('No staff record found.')
+      if (staffMember.role === 'admin') throw new Error('Access denied. Staff only.')
+      window.location.assign('/staff')
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : 'Invalid credentials')
+    } finally { setLoading(false) }
   }
 
   return (
-    <div className="login-page">
-      <div className="login-card">
-        <div className="login-logo">
-          <div className="login-logo-icon" aria-label="Staff icon">
-            <span aria-hidden="true">⚕️</span>
+    <div className="login">
+      <div className="login__content">
+        <motion.div className="login__card" initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.4 }}>
+          <div className="login__header">
+            <span className="login__logo">⚕️</span>
+            <h1 className="login__title">Staff Portal</h1>
+            <p className="login__sub">MediQueue — Sign in to continue</p>
           </div>
-          <h1 className="login-title">MediQueue Staff</h1>
-          <p className="login-subtitle">Staff Portal — Sign in to continue</p>
-        </div>
-
-        {error && <div className="login-error">{error}</div>}
-
-        <div className="login-field">
-          <label className="login-label">Email</label>
-          <input
-            type="email"
-            value={email}
-            onChange={(e) => setEmail(e.target.value)}
-            placeholder="you@hospital.com"
-            className="login-input"
-          />
-        </div>
-
-        <div className="login-field">
-          <label className="login-label">Password</label>
-          <input
-            type="password"
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
-            onKeyDown={(e) => {
-              if (e.key === 'Enter' && email && password && !loading) handleLogin();
-            }}
-            placeholder="••••••••"
-            className="login-input"
-          />
-        </div>
-
-        <button
-          onClick={handleLogin}
-          disabled={loading || !email || !password}
-          className="login-button"
-        >
-          {loading ? <span className="login-spinner">Signing in</span> : 'Sign In'}
-        </button>
-
-        <p className="login-demo-help">
-          Demo staff logins: staff@demo.com / staff1234, doctor@demo.com / doctor1234
-        </p>
-
-        <p className="login-demo-help">
-          <Link to="/admin/login" style={{ color: '#2563eb', textDecoration: 'none' }}>
-            Are you an administrator? Sign in here →
-          </Link>
-        </p>
+          {error && <motion.div className="login__error" initial={{ opacity: 0, y: -8 }} animate={{ opacity: 1, y: 0 }}>{error}</motion.div>}
+          <div className="login__field">
+            <label>Email</label>
+            <div className="login__input-wrap"><Mail size={16} className="login__input-icon" /><input type="email" value={email} onChange={e => setEmail(e.target.value)} placeholder="you@hospital.com" /></div>
+          </div>
+          <div className="login__field">
+            <label>Password</label>
+            <div className="login__input-wrap"><Lock size={16} className="login__input-icon" /><input type="password" value={password} onChange={e => setPassword(e.target.value)} placeholder="••••••••" onKeyDown={e => { if (e.key === 'Enter' && email && password && !loading) handleLogin() }} /></div>
+          </div>
+          <button className="login__btn" onClick={handleLogin} disabled={loading || !email || !password}>
+            {loading ? <span className="login__btn-loading"><span className="login__spinner" />Signing in</span> : <span className="login__btn-text">Sign In <ArrowRight size={18} /></span>}
+          </button>
+          <p className="login__demo">Demo: staff@demo.com / staff1234</p>
+          <p className="login__footer-link"><Link to="/admin/login">Administrator? Sign in here →</Link></p>
+        </motion.div>
       </div>
     </div>
-  );
+  )
 }
