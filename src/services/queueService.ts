@@ -4,6 +4,7 @@ import type {
   QueueEntry,
   StaffMember,
   CallAlert,
+  OverrideLog,
   DashboardStats,
 } from '../types'
 
@@ -25,6 +26,22 @@ export const queueService = {
 
   // PATIENT CHECK-IN
 
+
+  async findActiveByPhone(phone: string): Promise<Patient | null> {
+    const today = new Date().toISOString().split('T')[0]
+    const { data, error } = await supabase
+      .from('patients')
+      .select('*')
+      .eq('phone', phone)
+      .not('status', 'in', '("done","cancelled")')
+      .gte('checked_in_at', today)
+      .order('checked_in_at', { ascending: false })
+      .limit(1)
+      .maybeSingle()
+
+    if (error) throw error
+    return data
+  },
 
   async checkInPatient(
     fullName: string,
@@ -163,6 +180,43 @@ export const queueService = {
     return data
   },
 
+  async assignPatientToStaff(patientId: string, staffId: string): Promise<void> {
+    const { error } = await supabase
+      .from('patients')
+      .update({ assigned_to: staffId } as never)
+      .eq('id', patientId)
+
+    if (error) throw error
+  },
+
+  async movePatientToStage(
+    patientId: string,
+    stage: string,
+    status: string,
+  ): Promise<QueueEntry> {
+    const { data, error } = await supabase
+      .from('patients')
+      .update({ current_stage: stage, status } as never)
+      .eq('id', patientId)
+      .select('id, token_id, full_name, queue_number, current_stage, status, priority, position, checked_in_at')
+      .single()
+
+    if (error) throw error
+    return { ...data, wait_time_minutes: 0 } as QueueEntry
+  },
+
+  async requeuePatient(patientId: string): Promise<QueueEntry> {
+    const { data, error } = await supabase
+      .from('patients')
+      .update({ status: 'waiting' } as never)
+      .eq('id', patientId)
+      .select('id, token_id, full_name, queue_number, current_stage, status, priority, position, checked_in_at')
+      .single()
+
+    if (error) throw error
+    return { ...data, wait_time_minutes: data.position * 4 } as QueueEntry
+  },
+
 
   // CALL ALERTS
 
@@ -195,6 +249,77 @@ export const queueService = {
     return data
   },
 
+
+  // EMERGENCY OVERRIDE
+
+
+  async logEmergencyOverride(
+    patientId: string,
+    patientName: string,
+    staffId: string,
+    reason: string,
+  ): Promise<OverrideLog> {
+    const { data: staff } = await supabase
+      .from('staff_members')
+      .select('name')
+      .eq('id', staffId)
+      .single()
+
+    const authorizedBy = staff?.name ?? 'Staff Member'
+
+    const { data, error } = await supabase
+      .from('override_logs')
+      .insert({
+        patient_id: patientId,
+        patient_name: patientName,
+        staff_id: staffId,
+        authorized_by: authorizedBy,
+        reason,
+      })
+      .select()
+      .single()
+
+    if (error) throw error
+    return data
+  },
+
+  // PERSISTENT MUTATIONS (for Admin Dashboard)
+
+
+  async updatePatientStatus(queueId: string, status: string): Promise<QueueEntry> {
+    const now = new Date().toISOString()
+    const { data, error } = await supabase
+      .from('patients')
+      .update({
+        status: status as QueueEntry['status'],
+        ...(status === 'done' ? { done_at: now } : {}),
+        ...(status === 'in_consultation' ? { called_at: now } : {}),
+      } as never)
+      .eq('id', queueId)
+      .select('id, token_id, full_name, queue_number, current_stage, status, priority, position, checked_in_at')
+      .single()
+
+    if (error) throw error
+    return { ...data, wait_time_minutes: 0 } as QueueEntry
+  },
+
+  async updatePatientPriority(queueId: string, priority: 'normal' | 'priority' | 'emergency'): Promise<QueueEntry> {
+    const { data, error } = await supabase
+      .from('patients')
+      .update({ priority })
+      .eq('id', queueId)
+      .select('id, token_id, full_name, queue_number, current_stage, status, priority, position, checked_in_at')
+      .single()
+
+    if (error) throw error
+    return { ...data, wait_time_minutes: 0 } as QueueEntry
+  },
+
+  async callPatientToConsult(queueId: string, queueNumber: number, department: Department): Promise<QueueEntry> {
+    const result = await queueService.updatePatientStatus(queueId, 'in_consultation')
+    await queueService.recordCallAlert(queueId, queueNumber, department)
+    return result
+  },
 
   // DASHBOARD STATS
 

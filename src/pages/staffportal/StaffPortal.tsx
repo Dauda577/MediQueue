@@ -1,51 +1,29 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import {
-  AlertTriangle,
-  ArrowRight,
-  CheckCircle2,
-  Clock3,
-  Download,
-  LogOut,
-  UserRound,
-  Users,
-} from 'lucide-react'
+import { useNavigate } from 'react-router-dom'
+import { motion } from 'framer-motion'
+import { ArrowRight, CheckCircle2, Clock3, LogOut, Users, AlertTriangle, UserRound } from 'lucide-react'
+import CountUp from '../../components/reactbits/CountUp'
 import { useAuth } from '../../context/AuthContext'
 import { useRealtimeQueue } from '../../hooks/useRealtimeQueue'
 import { announcePatient } from '../../lib/announce'
+import { signOut } from '../../lib/auth'
+import { supabase } from '../../lib/supabase'
 import { queueService } from '../../services/queueService'
 import type { QueueEntry } from '../../types'
 import './StaffPortal.css'
 
 type Department = 'OPD' | 'Lab' | 'Pharmacy' | 'Maternity'
 
-const priorityRank: Record<QueueEntry['priority'], number> = {
-  emergency: 0,
-  priority: 1,
-  normal: 2,
-}
+const DEPT_LABELS: Record<Department, string> = { OPD: 'Outpatient', Lab: 'Lab', Pharmacy: 'Pharmacy', Maternity: 'Maternity' }
+const priorityRank: Record<QueueEntry['priority'], number> = { emergency: 0, priority: 1, normal: 2 }
 
-function getInitials(name: string) {
-  return name
-    .split(' ')
-    .filter(Boolean)
-    .slice(0, 2)
-    .map((word) => word[0]?.toUpperCase() ?? '')
-    .join('')
-}
-
-function formatClock(value: Date) {
-  return value.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
-}
-
-function formatDate(value: Date) {
-  return value.toLocaleDateString([], { weekday: 'short', month: 'short', day: 'numeric' })
-}
-
-function formatTimeLabel(value: string) {
-  return new Date(value).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })
-}
+function getInitials(name: string) { return name.split(' ').filter(Boolean).slice(0, 2).map(w => w[0]?.toUpperCase() ?? '').join('') }
+function formatClock(value: Date) { return value.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) }
+function formatDate(value: Date) { return value.toLocaleDateString([], { weekday: 'short', month: 'short', day: 'numeric' }) }
+function formatTimeLabel(value: string) { return new Date(value).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' }) }
 
 export default function StaffPortal() {
+  const navigate = useNavigate()
   const { staff, loading: authLoading } = useAuth()
   const [queue, setQueue] = useState<QueueEntry[]>([])
   const [loading, setLoading] = useState(true)
@@ -56,392 +34,201 @@ export default function StaffPortal() {
   const [sessionTime, setSessionTime] = useState(new Date())
   const [consultElapsed, setConsultElapsed] = useState(0)
 
-  useEffect(() => {
-    if (staff?.department) {
-      setDepartment(staff.department as Department)
-    }
-  }, [staff?.department])
+  useEffect(() => { if (staff?.department) setDepartment(staff.department as Department) }, [staff?.department])
 
   const fetchQueue = useCallback(async () => {
     if (!department) return
-
-    try {
-      const data = await queueService.getQueueByDepartment(department)
-      setQueue(data)
-    } catch (error) {
-      console.error('Failed to fetch staff queue:', error)
-    } finally {
-      setLoading(false)
-    }
+    try { const data = await queueService.getQueueByDepartment(department); setQueue(data) } catch { /* ignore */ }
+    finally { setLoading(false) }
   }, [department])
 
   useRealtimeQueue({ department, onUpdate: fetchQueue })
+  useEffect(() => { fetchQueue() }, [fetchQueue])
 
+  useEffect(() => { const i = window.setInterval(() => setSessionTime(new Date()), 60000); return () => window.clearInterval(i) }, [])
   useEffect(() => {
-    fetchQueue()
-  }, [fetchQueue])
-
-  useEffect(() => {
-    const interval = window.setInterval(() => {
-      setSessionTime(new Date())
-      setQueue((prev) => prev.map((entry) => ({ ...entry, wait_time_minutes: entry.wait_time_minutes + 1 })))
-    }, 60000)
-
-    return () => window.clearInterval(interval)
-  }, [])
-
-  useEffect(() => {
-    if (!currentServing) {
-      setConsultElapsed(0)
-      return
-    }
-
-    const interval = window.setInterval(() => {
-      setConsultElapsed((prev) => prev + 1)
-    }, 30000)
-
-    return () => window.clearInterval(interval)
+    if (!currentServing) { setConsultElapsed(0); return }
+    const i = window.setInterval(() => setConsultElapsed(p => p + 1), 30000); return () => window.clearInterval(i)
   }, [currentServing])
 
-  const sortedQueue = useMemo(() => {
-    return [...queue].sort((left, right) => {
-      const priorityDiff = priorityRank[left.priority] - priorityRank[right.priority]
-      if (priorityDiff !== 0) return priorityDiff
-      return right.wait_time_minutes - left.wait_time_minutes
-    })
-  }, [queue])
+  const sortedQueue = useMemo(() => [...queue].sort((a, b) => priorityRank[a.priority] - priorityRank[b.priority] || b.wait_time_minutes - a.wait_time_minutes), [queue])
+  const urgentCount = queue.filter(e => e.priority === 'emergency').length
+  const avgWait = queue.length > 0 ? Math.round(queue.reduce((s, e) => s + e.wait_time_minutes, 0) / queue.length) : 0
 
-  const urgentCount = queue.filter((entry) => entry.priority === 'emergency').length
-  const avgWait = queue.length > 0 ? Math.round(queue.reduce((sum, entry) => sum + entry.wait_time_minutes, 0) / queue.length) : 0
-
-  const showAnnouncement = useCallback((message: string) => {
-    setAnnouncement(message)
-    window.setTimeout(() => setAnnouncement(null), 4500)
-  }, [])
+  const showAnnouncement = useCallback((msg: string) => { setAnnouncement(msg); window.setTimeout(() => setAnnouncement(null), 4500) }, [])
 
   const handleCallNext = async () => {
     if (queue.length === 0) return
-
     try {
-      const nextPatient = await queueService.callNextPatient(department)
-      setQueue((prev) => prev.filter((entry) => entry.id !== nextPatient.id))
-      setCurrentServing(nextPatient)
-      setConsultElapsed(0)
-      announcePatient(nextPatient.queue_number, department, nextPatient.full_name)
-      showAnnouncement(`Now calling ${nextPatient.full_name} • #${nextPatient.queue_number}`)
-    } catch (error) {
-      console.error('Failed to call next patient:', error)
-    }
+      const np = await queueService.callNextPatient(department)
+      if (staff?.id) await queueService.assignPatientToStaff(np.id, staff.id)
+
+      const { data: patient } = await supabase.from('patients').select('phone').eq('id', np.id).single()
+      if (patient?.phone) {
+        const station = department === 'OPD' ? 'Room 3, West Wing' : department === 'Lab' ? 'Lab-1, East Wing' : department === 'Pharmacy' ? 'Counter 2, Main Hall' : 'Ward 1, East Wing'
+        fetch('https://sms.arkesel.com/api/v2/sms/send', {
+          method: 'POST', headers: { 'Content-Type': 'application/json', 'api-key': 'bUZZcmpZZkt6RVNMSmxhdXdVYlA' },
+          body: JSON.stringify({ sender: 'MediQueue', recipients: [patient.phone], message: `MediQueue: Your turn now! Please proceed to ${station}.` }),
+        }).catch(() => {})
+      }
+      setQueue(p => p.filter(e => e.id !== np.id)); setCurrentServing(np); setConsultElapsed(0)
+      announcePatient(np.queue_number, department, np.full_name)
+      showAnnouncement(`Now calling ${np.full_name} • #${np.queue_number}`)
+    } catch { /* ignore */ }
   }
 
-  const handleSelectPatient = (entry: QueueEntry) => {
-    setQueue((prev) => {
-      const nextQueue = [...prev]
-      if (currentServing) {
-        nextQueue.push(currentServing)
-      }
-      return nextQueue.filter((item) => item.id !== entry.id)
-    })
-
-    setCurrentServing(entry)
-    setConsultElapsed(0)
+  const handleSelectPatient = async (entry: QueueEntry) => {
+    if (staff?.id) await queueService.assignPatientToStaff(entry.id, staff.id).catch(() => {})
+    setQueue(p => { const n = [...p]; if (currentServing) n.push(currentServing); return n.filter(i => i.id !== entry.id) })
+    setCurrentServing(entry); setConsultElapsed(0)
     showAnnouncement(`Selected ${entry.full_name} • #${entry.queue_number}`)
   }
 
-  const handleMarkServed = async () => {
+  const handleRequeue = async () => {
     if (!currentServing) return
+    try {
+      await queueService.requeuePatient(currentServing.id)
+      showAnnouncement(`${currentServing.full_name} re-queued — no show`)
+      setCurrentServing(null)
+      setConsultElapsed(0)
+      fetchQueue()
+    } catch { /* ignore */ }
+  }
 
+  const handleMoveStage = async (stage: string, status: string) => {
+    if (!currentServing) return
+    try {
+      const stageLabels: Record<string, string> = { Lab: 'Lab', Pharmacy: 'Pharmacy' }
+      await queueService.movePatientToStage(currentServing.id, stage, status)
+      showAnnouncement(`${currentServing.full_name} sent to ${stageLabels[stage] || stage}`)
+      setCurrentServing(null)
+      setConsultElapsed(0)
+      fetchQueue()
+    } catch { /* ignore */ }
+  }
+
+  const handleMarkDone = async () => {
+    if (!currentServing) return
     try {
       await queueService.markAsServed(currentServing.id)
+      showAnnouncement(`${currentServing.full_name} visit complete`)
       setCurrentServing(null)
-      setSeenToday((prev) => prev + 1)
+      setSeenToday(p => p + 1)
       setConsultElapsed(0)
-      showAnnouncement(`${currentServing.full_name} marked as served`)
-    } catch (error) {
-      console.error('Failed to mark patient as served:', error)
-    }
+      fetchQueue()
+    } catch { /* ignore */ }
   }
 
-  if (authLoading || loading) {
-    return <div className="staff-portal-loading">Loading staff dashboard...</div>
-  }
+  const handleSignOut = async () => { await signOut(); navigate('/staff/login', { replace: true }) }
 
-  if (!staff) {
-    return <div className="staff-portal-message">Please sign in to continue.</div>
-  }
+  if (authLoading || loading) return <div className="sp-loading">Loading staff dashboard...</div>
+  if (!staff) return <div className="sp-loading">Please sign in to continue.</div>
 
   return (
-    <div className="staff-portal-page">
-      <div className="staff-portal-shell">
-        <aside className="staff-sidebar">
-          <div className="sidebar-brand">
-            <div className="sidebar-logo">
-              <div className="sidebar-logo-inner" aria-label="Medical icon">
-                <span aria-hidden="true">⚕️</span>
+    <div className="sp-page">
+      <header className="sp-header">
+        <div className="sp-header-left">
+          <span className="sp-logo">⚕️</span>
+          <div><h1 className="sp-title">Central Medical</h1><p className="sp-subtitle">{DEPT_LABELS[department]} Department</p></div>
+        </div>
+        <div className="sp-header-right">
+          <div className="sp-clock"><span className="sp-clock-time">{formatClock(sessionTime)}</span><span className="sp-clock-date">{formatDate(sessionTime)}</span></div>
+          <button className="sp-signout-btn" onClick={handleSignOut}><LogOut size={16} /></button>
+        </div>
+      </header>
+
+      {announcement && (
+        <motion.div className="sp-announce" initial={{ opacity: 0, y: -20 }} animate={{ opacity: 1, y: 0 }}>{announcement}</motion.div>
+      )}
+
+      <div className="sp-body">
+        <div className="sp-metrics">
+          {[
+            { label: 'Waiting', value: queue.length, icon: Users, color: '#0077B6' },
+            { label: 'Avg Wait', value: `${avgWait}m`, icon: Clock3, color: avgWait > 30 ? '#E8453C' : '#F2A900' },
+            { label: 'Urgent', value: urgentCount, icon: AlertTriangle, color: urgentCount > 0 ? '#E8453C' : '#6B8A93' },
+            { label: 'Seen Today', value: seenToday, icon: CheckCircle2, color: '#02C39A' },
+          ].map(m => (
+            <div key={m.label} className="sp-metric" style={{ '--metric-color': m.color } as React.CSSProperties}>
+              <div className="sp-metric-icon" style={{ background: `${m.color}15`, color: m.color }}><m.icon size={16} /></div>
+              <div className="sp-metric-info">
+                <span className="sp-metric-label">{m.label}</span>
+                <span className="sp-metric-value">{typeof m.value === 'number' ? <CountUp to={m.value} duration={0.8} /> : m.value}</span>
               </div>
             </div>
-            <div>
-              <p className="sidebar-title">MediQueue</p>
-              <p className="sidebar-subtitle">Staff Portal</p>
-            </div>
-          </div>
+          ))}
+        </div>
 
-          <div className="sidebar-dashboard-header">
-            <h1>Central Medical — {department}</h1>
-            <p>Welcome back, {staff.name.split(' ')[0] || staff.name}</p>
-          </div>
-
-          <div className="sidebar-profile">
-            <div className="sidebar-avatar">{getInitials(staff.name)}</div>
-            <div>
-              <p className="sidebar-profile-name">{staff.name}</p>
-              <p className="sidebar-profile-role">{(staff.role || 'staff').replace('_', ' ')}</p>
-            </div>
-            <div className="sidebar-badge">
-              <span>Department</span>
-              <strong>{department}</strong>
-            </div>
-          </div>
-
-          <div className="sidebar-section">
-            <div className="sidebar-section-head">
-              <span className="live-dot" />
-              <span>Live Queue</span>
-            </div>
-            <div className="sidebar-stat-row">
-              <span>Waiting</span>
-              <strong>{queue.length}</strong>
-            </div>
-            <div className="sidebar-stat-row">
-              <span>Avg wait</span>
-              <strong>{avgWait}m</strong>
-            </div>
-            <div className="sidebar-stat-row">
-              <span>Urgent</span>
-              <strong>{urgentCount}</strong>
-            </div>
-          </div>
-
-          <div className="sidebar-clock">
-            <p className="clock-time">{formatClock(sessionTime)}</p>
-            <p className="clock-date">{formatDate(sessionTime)}</p>
-          </div>
-        </aside>
-
-        <main className="staff-main">
-          <header className="staff-main-header">
-            {announcement ? (
-              <div className="announcement-toast">
-                <Download size={13} />
-                <span>{announcement}</span>
+        <div className="sp-panels">
+          <div className="sp-panel sp-current">
+            <div className="sp-panel-header"><h2>Current Patient</h2>{currentServing && <span className={`sp-priority-badge ${currentServing.priority}`}>{currentServing.priority}</span>}</div>
+            {currentServing ? (
+              <div className="sp-current-card">
+                <div className="sp-current-avatar">{getInitials(currentServing.full_name)}</div>
+                <div className="sp-current-info"><h3>{currentServing.full_name}</h3><p>Consultation in progress</p></div>
+                <div className="sp-current-stats">
+                  <div><span>Queue No.</span><strong>#{currentServing.queue_number}</strong></div>
+                  <div><span>Waited</span><strong>{currentServing.wait_time_minutes}m</strong></div>
+                  <div><span>In Consult</span><strong>{consultElapsed < 1 ? '0m' : `${consultElapsed}m`}</strong></div>
+                </div>
+                <div className="sp-current-footer"><span>Arrived {formatTimeLabel(currentServing.checked_in_at)}</span><span>{currentServing.current_stage}</span></div>
               </div>
-            ) : null}
-          </header>
+            ) : (
+              <div className="sp-empty-state"><UserRound size={24} /><p>No patient in consultation</p><span>Call the next patient to begin.</span></div>
+            )}
+          </div>
 
-          <div className="staff-content">
-            <section className="metric-grid">
-              <article className="metric-card">
-                <div className="metric-card-head">
-                  <span>Waiting</span>
-                  <div className="metric-icon teal">
-                    <Users size={16} />
-                  </div>
-                </div>
-                <p className="metric-number">{queue.length}</p>
-                <p className="metric-label">Patients waiting</p>
-              </article>
-              <article className="metric-card">
-                <div className="metric-card-head">
-                  <span>Avg Wait</span>
-                  <div className="metric-icon amber">
-                    <Clock3 size={16} />
-                  </div>
-                </div>
-                <p className={`metric-number ${avgWait > 30 ? 'danger' : ''}`}>{avgWait}m</p>
-                <p className="metric-label">Average wait time</p>
-              </article>
-              <article className="metric-card">
-                <div className="metric-card-head">
-                  <span>Urgent</span>
-                  <div className="metric-icon danger">
-                    <AlertTriangle size={16} />
-                  </div>
-                </div>
-                <p className={`metric-number ${urgentCount > 0 ? 'danger' : ''}`}>{urgentCount}</p>
-                <p className="metric-label">High priority cases</p>
-              </article>
-              <article className="metric-card">
-                <div className="metric-card-head">
-                  <span>Seen Today</span>
-                  <div className="metric-icon green">
-                    <CheckCircle2 size={16} />
-                  </div>
-                </div>
-                <p className="metric-number green">{seenToday}</p>
-                <p className="metric-label">Patients served</p>
-              </article>
-            </section>
-
-            <section className="consult-grid">
-              <article className="panel current-patient-panel">
-                <div className="panel-head">
-                  <h2>Current Patient</h2>
-                  {currentServing ? (
-                    <span className={`priority-badge ${currentServing.priority}`}>{currentServing.priority.toUpperCase()}</span>
-                  ) : null}
-                </div>
-
-                {currentServing ? (
-                  <div className="current-patient-card">
-                    <div className="patient-avatar">{getInitials(currentServing.full_name)}</div>
-                    <div className="patient-info">
-                      <h3>{currentServing.full_name}</h3>
-                      <p>Consultation in progress</p>
-                    </div>
-                    <div className="patient-stats">
-                      <div className="stat-cell">
-                        <span>Queue No.</span>
-                        <strong>#{currentServing.queue_number}</strong>
-                      </div>
-                      <div className="stat-cell">
-                        <span>Priority</span>
-                        <strong>{currentServing.priority}</strong>
-                      </div>
-                      <div className="stat-cell">
-                        <span>Waited</span>
-                        <strong>{currentServing.wait_time_minutes}m</strong>
-                      </div>
-                      <div className="stat-cell">
-                        <span>In Consult</span>
-                        <strong>{consultElapsed < 1 ? '0m' : `${consultElapsed}m`}</strong>
-                      </div>
-                    </div>
-                    <div className="patient-footer">
-                      <span>Arrived {formatTimeLabel(currentServing.checked_in_at)}</span>
-                      <span>{department}</span>
-                    </div>
-                  </div>
-                ) : (
-                  <div className="empty-state">
-                    <div className="empty-icon">
-                      <UserRound size={20} />
-                    </div>
-                    <p>No patient in consultation</p>
-                    <span>Call the next patient to begin the next visit.</span>
-                  </div>
-                )}
-              </article>
-
-              <div className="action-stack">
-                <button
-                  className={`action-card teal ${queue.length === 0 ? 'disabled' : ''}`}
-                  type="button"
-                  onClick={handleCallNext}
-                  disabled={queue.length === 0}
-                >
-                  <div className="action-icon">
-                    <ArrowRight size={16} />
-                  </div>
-                  <div>
-                    <p>Call Next Patient</p>
-                    <span>{sortedQueue[0] ? `${sortedQueue[0].full_name} • #${sortedQueue[0].queue_number}` : 'Queue is empty'}</span>
-                  </div>
-                </button>
-
-                <button
-                  className={`action-card green ${!currentServing ? 'disabled' : ''}`}
-                  type="button"
-                  onClick={handleMarkServed}
-                  disabled={!currentServing}
-                >
-                  <div className="action-icon">
-                    <CheckCircle2 size={16} />
-                  </div>
-                  <div>
-                    <p>Mark as Served</p>
-                    <span>{currentServing ? `${currentServing.full_name} • #${currentServing.queue_number}` : 'No active patient'}</span>
-                  </div>
-                </button>
-
-                <div className="up-next-card">
-                  <p className="up-next-label">Up Next</p>
-                  {sortedQueue.slice(0, 2).map((entry) => (
-                    <div key={entry.id} className="up-next-row">
-                      <div>
-                        <p className="up-next-number">#{entry.queue_number}</p>
-                        <p className="up-next-name">{entry.full_name}</p>
-                      </div>
-                      <span className={`priority-pill ${entry.priority}`}>{entry.priority.toUpperCase()}</span>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            </section>
-
-            <section className="table-card">
-              <div className="table-head">
-                <div>
-                  <h2>Waiting Patients</h2>
-                  <span className="table-count">{queue.length} active</span>
-                </div>
-                <div className="table-status">
-                  <span className="live-dot" />
-                  <span>LIVE</span>
-                </div>
-              </div>
-
-              <div className="table-wrapper">
-                <table className="staff-table">
-                  <thead>
-                    <tr>
-                      <th>Queue No.</th>
-                      <th>Patient</th>
-                      <th>Priority</th>
-                      <th>Position</th>
-                      <th>Wait</th>
-                      <th>Arrived</th>
-                      <th>Action</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {sortedQueue.map((entry) => (
-                      <tr key={entry.id} className={currentServing?.id === entry.id ? 'serving-row' : ''}>
-                        <td className="queue-number">#{entry.queue_number}</td>
-                        <td>
-                          <div className="patient-cell">
-                            <div className="cell-avatar">{getInitials(entry.full_name)}</div>
-                            <div>
-                              <p>{entry.full_name}</p>
-                              <span>{department}</span>
-                            </div>
-                          </div>
-                        </td>
-                        <td>
-                          <span className={`priority-pill ${entry.priority}`}>{entry.priority.toUpperCase()}</span>
-                        </td>
-                        <td className="mono-cell">#{entry.position}</td>
-                        <td className={`mono-cell ${entry.wait_time_minutes > 40 ? 'danger' : entry.wait_time_minutes > 20 ? 'amber' : ''}`}>
-                          {entry.wait_time_minutes}m
-                        </td>
-                        <td className="mono-cell">{formatTimeLabel(entry.checked_in_at)}</td>
-                        <td>
-                          <button className="select-btn" type="button" onClick={() => handleSelectPatient(entry)}>
-                            Select
-                          </button>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            </section>
-
-            <button className="sidebar-signout" type="button">
-              <LogOut size={15} />
-              Sign out
+          <div className="sp-actions">
+            <button className="sp-action sp-action-call" onClick={handleCallNext} disabled={queue.length === 0}>
+              <ArrowRight size={18} /><div><p>Call Next Patient</p><span>{sortedQueue[0] ? `${sortedQueue[0].full_name} • #${sortedQueue[0].queue_number}` : 'Queue is empty'}</span></div>
             </button>
+            <button className={`sp-action sp-action-serve${!currentServing ? ' disabled' : ''}`} onClick={handleMarkDone} disabled={!currentServing}>
+              <CheckCircle2 size={18} /><div><p>Mark as Done</p><span>{currentServing ? `${currentServing.full_name} • #${currentServing.queue_number}` : 'No active patient'}</span></div>
+            </button>
+
+            {currentServing && (
+              <div className="sp-stage-actions">
+                <button className="sp-stage-btn sp-stage-btn--lab" onClick={() => handleMoveStage('Lab', 'in_lab')}>
+                  🔬 Send to Lab
+                </button>
+                <button className="sp-stage-btn sp-stage-btn--pharmacy" onClick={() => handleMoveStage('Pharmacy', 'in_pharmacy')}>
+                  💊 Send to Pharmacy
+                </button>
+                <button className="sp-stage-btn sp-stage-btn--done" onClick={handleMarkDone}>
+                  ✅ Complete Visit
+                </button>
+              </div>
+            )}
+
+            <button className={`sp-action sp-action-requeue${!currentServing ? ' disabled' : ''}`} onClick={handleRequeue} disabled={!currentServing}>
+              <Clock3 size={18} /><div><p>No Show / Re-queue</p><span>Patient did not respond — send back to waiting</span></div>
+            </button>
+            <div className="sp-up-next">
+              <p className="sp-up-next-label">Up Next</p>
+              {sortedQueue.slice(0, 2).map(e => (
+                <div key={e.id} className="sp-up-next-row">
+                  <div><p className="sp-up-next-num">#{e.queue_number}</p><p className="sp-up-next-name">{e.full_name}</p></div>
+                  <span className={`sp-priority-pill ${e.priority}`}>{e.priority}</span>
+                </div>
+              ))}
+            </div>
           </div>
-        </main>
+        </div>
+
+        <div className="sp-queue-panel">
+          <div className="sp-queue-header"><h2>Waiting Patients</h2><span className="sp-queue-count">{queue.length} active</span></div>
+          <div className="sp-queue-list">
+            {sortedQueue.map(e => (
+              <div key={e.id} className={`sp-queue-row${currentServing?.id === e.id ? ' serving' : ''}`} onClick={() => handleSelectPatient(e)}>
+                <span className="sp-queue-pos">#{e.position}</span>
+                <div className="sp-queue-patient"><div className="sp-queue-avatar">{getInitials(e.full_name)}</div><div><p className="sp-queue-name">{e.full_name}</p><span className="sp-queue-meta">#{e.queue_number}</span></div></div>
+                <span className={`sp-priority-pill ${e.priority}`}>{e.priority}</span>
+                <span className="sp-queue-wait">{e.wait_time_minutes}m</span>
+                <span className="sp-queue-arrived">{formatTimeLabel(e.checked_in_at)}</span>
+              </div>
+            ))}
+          </div>
+        </div>
       </div>
     </div>
   )

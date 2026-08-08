@@ -1,88 +1,78 @@
-import React, { useState, useEffect, useCallback, useRef } from 'react';
-import { useNavigate } from 'react-router-dom';
-import { motion, AnimatePresence } from 'framer-motion';
+import { useState, useEffect, useCallback, useRef } from 'react'
+import { useNavigate } from 'react-router-dom'
+import { motion, AnimatePresence } from 'framer-motion'
+import { User, Phone, ChevronRight, Zap, Clock, AlertCircle } from 'lucide-react'
+import CountUp from '../../components/reactbits/CountUp'
 import { useRealtimeQueue } from '../../hooks/useRealtimeQueue'
 import { queueService } from '../../services/queueService'
 import { supabase } from '../../lib/supabase'
-import './CheckIn.css';
+import './CheckIn.css'
 
+type DepartmentId = 'OPD' | 'Lab' | 'Pharmacy' | 'Maternity'
 
-
-
-export type DepartmentId = 'OPD' | 'Lab' | 'Pharmacy' | 'Maternity';
-
-export interface DepartmentConfig {
-  id: DepartmentId;
-  label: string;
-  sub: string;
-  icon: string;
-  avgMinsPerPatient: number; // used to derive wait time consistently with QueueTracker
+interface DepartmentConfig {
+  id: DepartmentId; label: string; sub: string; icon: string
+  avgMinsPerPatient: number; color: string
 }
 
-export interface QueueStats {
-  waiting: number;
-  avgWaitMins: number;
-}
-
-export type DepartmentStats = Record<DepartmentId, QueueStats>;
+interface QueueStats { waiting: number; avgWaitMins: number }
+type DepartmentStats = Record<DepartmentId, QueueStats>
 
 const DEPARTMENTS: DepartmentConfig[] = [
-  { id: 'OPD',      label: 'OPD',      sub: 'Gen. Consultation', icon: '🩺', avgMinsPerPatient: 4 },
-  { id: 'Lab',      label: 'Lab',      sub: 'Blood & Scans',     icon: '🔬', avgMinsPerPatient: 2 },
-  { id: 'Pharmacy', label: 'Pharmacy', sub: 'Prescriptions',     icon: '💊', avgMinsPerPatient: 1 },
-  { id: 'Maternity', label: 'Maternity', sub: 'Maternal Care',   icon: '🤱', avgMinsPerPatient: 6 },
-];
+  { id: 'OPD', label: 'Outpatient', sub: 'General Consultation', icon: '🩺', avgMinsPerPatient: 4, color: '#0077B6' },
+  { id: 'Lab', label: 'Laboratory', sub: 'Blood Work & Scans', icon: '🔬', avgMinsPerPatient: 2, color: '#7C5CFC' },
+  { id: 'Pharmacy', label: 'Pharmacy', sub: 'Prescriptions', icon: '💊', avgMinsPerPatient: 1, color: '#00A896' },
+  { id: 'Maternity', label: 'Maternity', sub: 'Maternal Care', icon: '🤱', avgMinsPerPatient: 6, color: '#E8457A' },
+]
 
-// ─── Helpers ──────────────────────────────────────────────────────────────────
-
-function validatePhone(phone: string): string | null {
-  if (!phone.trim()) return null; // optional field — empty is fine
-  // Accepts +233XXXXXXXXX or 0XXXXXXXXX (Ghana), 10–13 digits
-  const cleaned = phone.replace(/[\s\-().]/g, '');
-  if (!/^(\+233|0)\d{9}$/.test(cleaned)) {
-    return 'Enter a valid Ghanaian number, e.g. 024 XXX XXXX';
-  }
-  return null;
+function cleanPhone(phone: string): string {
+  const digits = phone.replace(/[\s\-().]/g, '')
+  if (digits.startsWith('0')) return '+233' + digits.slice(1)
+  if (digits.startsWith('233')) return '+' + digits
+  return digits
 }
 
-// ─── Sub-components ───────────────────────────────────────────────────────────
+function validatePhone(phone: string): string | null {
+  if (!phone.trim()) return 'Phone number is required.'
+  const cleaned = phone.replace(/[\s\-().]/g, '')
+  if (!/^(\+233|0)\d{9}$/.test(cleaned)) return 'Enter a valid Ghanaian number, e.g. 024 XXX XXXX'
+  return null
+}
 
-const LiveDot: React.FC = () => (
-  <motion.span
-    className="ci-live-dot"
-    animate={{ scale: [1, 1.5, 1], opacity: [1, 0.5, 1] }}
-    transition={{ duration: 2, repeat: Infinity, ease: 'easeInOut' }}
-  />
-);
-
-// ─── Main component ───────────────────────────────────────────────────────────
+async function sendSms(phone: string, message: string) {
+  try {
+    await fetch('https://sms.arkesel.com/api/v2/sms/send', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'api-key': 'bUZZcmpZZkt6RVNMSmxhdXdVYlA' },
+      body: JSON.stringify({
+        sender: 'MediQueue',
+        recipients: [cleanPhone(phone)],
+        message,
+      }),
+    })
+  } catch { /* silent — don't block UI */ }
+}
 
 export default function CheckIn() {
-  const navigate = useNavigate();
-
-  // ── Form state ──
-  const [fullName, setFullName]       = useState('');
-  const [phone, setPhone]             = useState('');
-  const [department, setDepartment]   = useState<DepartmentId | null>(null);
-  const [isPriority, setIsPriority]   = useState(false);
-  const [loading, setLoading]         = useState(false);
-  const [error, setError]             = useState('');
-  const [fieldErrors, setFieldErrors] = useState<{ name?: string; phone?: string }>({});
-
+  const navigate = useNavigate()
+  const [fullName, setFullName] = useState('')
+  const [phone, setPhone] = useState('')
+  const [department, setDepartment] = useState<DepartmentId | null>(null)
+  const [isPriority, setIsPriority] = useState(false)
+  const [loading, setLoading] = useState(false)
+  const [error, setError] = useState('')
+  const [fieldErrors, setFieldErrors] = useState<{ name?: string; phone?: string }>({})
+  const [existingToken, setExistingToken] = useState<string | null>(null)
   const [deptStats, setDeptStats] = useState<DepartmentStats>({
-    OPD:      { waiting: 0, avgWaitMins: 0 },
-    Lab:      { waiting: 0, avgWaitMins: 0 },
-    Pharmacy: { waiting: 0, avgWaitMins: 0 },
-    Maternity: { waiting: 0, avgWaitMins: 0 },
-  });
+    OPD: { waiting: 0, avgWaitMins: 0 }, Lab: { waiting: 0, avgWaitMins: 0 },
+    Pharmacy: { waiting: 0, avgWaitMins: 0 }, Maternity: { waiting: 0, avgWaitMins: 0 },
+  })
 
   const fetchDeptStats = useCallback(async () => {
-    const entries = await Promise.all(
-      DEPARTMENTS.map(async (dept) => {
-        const queue = await queueService.getQueueByDepartment(dept.id)
-        return { id: dept.id, waiting: queue.length }
-      })
-    )
+    const entries = await Promise.all(DEPARTMENTS.map(async (dept) => {
+      const queue = await queueService.getQueueByDepartment(dept.id)
+      return { id: dept.id, waiting: queue.length }
+    }))
     setDeptStats(prev => {
       const updated = { ...prev }
       for (const { id, waiting } of entries) {
@@ -94,410 +84,196 @@ export default function CheckIn() {
   }, [])
 
   useRealtimeQueue({ onUpdate: fetchDeptStats })
-
   useEffect(() => { fetchDeptStats() }, [fetchDeptStats])
 
-  // ── Redirect if user already has an active booking ──
   const redirectGuard = useRef(false)
-
   useEffect(() => {
     if (redirectGuard.current) return
     const stored = localStorage.getItem('activeToken')
     if (!stored) return
-
     redirectGuard.current = true
     supabase.from('patients').select('token_id, status').eq('token_id', stored).maybeSingle().then(({ data }) => {
-      if (data && data.status !== 'done' && data.status !== 'cancelled') {
-        navigate(`/queue/${data.token_id}`, { replace: true })
-      } else {
-        localStorage.removeItem('activeToken')
-      }
+      if (data && data.status !== 'done' && data.status !== 'cancelled') navigate(`/queue/${data.token_id}`, { replace: true })
+      else localStorage.removeItem('activeToken')
     })
   }, [navigate])
 
-  // ── Validation ──
-  const validate = useCallback((): boolean => {
-    const errors: { name?: string; phone?: string } = {};
-    if (!fullName.trim()) errors.name = 'Full name is required.';
-    const phoneErr = validatePhone(phone);
-    if (phoneErr) errors.phone = phoneErr;
-    if (!department) {
-      setError('Please select a department.');
-      setFieldErrors(errors);
-      return false;
-    }
-    setFieldErrors(errors);
-    if (Object.keys(errors).length > 0) {
-      setError('Please fix the errors above.');
-      return false;
-    }
-    return true;
-  }, [fullName, phone, department]);
-
-  // ── Submit ──
-  const handleSubmit = async () => {
-    setError('');
-    if (!validate()) return;
-
-    setLoading(true);
+  const checkExisting = useCallback(async (phoneNumber: string) => {
+    const cleaned = cleanPhone(phoneNumber)
+    if (cleaned.length < 12) return
     try {
-      const patient = await queueService.checkInPatient(
-        fullName.trim(),
-        department!,
-        {
-          phone: phone.trim() || undefined,
-          priority: isPriority ? 'priority' : 'normal',
-        }
-      );
+      const existing = await queueService.findActiveByPhone(cleaned)
+      if (existing) {
+        setExistingToken(existing.token_id)
+        setError('')
+      } else {
+        setExistingToken(null)
+      }
+    } catch { /* ignore */ }
+  }, [])
 
-      localStorage.setItem('activeToken', patient.token_id)
-      navigate(`/queue/${patient.token_id}`, {
-        replace: true,
-        state: {
-          fullName:   patient.full_name,
-          phone:      patient.phone,
-          department: patient.initial_department,
-          isPriority: patient.priority !== 'normal',
-          tokenId:    patient.token_id,
-        },
-      });
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Something went wrong. Please try again.');
-      setLoading(false);
+  const validate = useCallback((): boolean => {
+    const errors: { name?: string; phone?: string } = {}
+    if (!fullName.trim()) errors.name = 'Full name is required.'
+    const phoneErr = validatePhone(phone)
+    if (phoneErr) errors.phone = phoneErr
+    if (!department) { setError('Please select a department.'); setFieldErrors(errors); return false }
+    setFieldErrors(errors)
+    if (Object.keys(errors).length > 0) { setError('Please fix the errors above.'); return false }
+    return true
+  }, [fullName, phone, department])
+
+  const handleSubmit = async () => {
+    setError('')
+    if (!validate()) return
+    if (existingToken) {
+      navigate(`/queue/${existingToken}`, { replace: true })
+      return
     }
-  };
+    setLoading(true)
+    try {
+      const cleanedPhone = cleanPhone(phone)
+      const patient = await queueService.checkInPatient(fullName.trim(), department!, {
+        phone: cleanedPhone, priority: isPriority ? 'priority' : 'normal',
+      })
+      localStorage.setItem('activeToken', patient.token_id)
 
-  // ── Derived: wait time for selected department ──
-  const selectedDeptWait = department ? deptStats[department].avgWaitMins : null;
+      const station = department === 'OPD' ? 'Room 3, West Wing'
+        : department === 'Lab' ? 'Lab-1, East Wing'
+        : department === 'Pharmacy' ? 'Counter 2, Main Hall'
+        : 'Ward 1, East Wing'
+      const waitMins = (deptStats[department!]?.avgWaitMins ?? 0) + (DEPARTMENTS.find(d => d.id === department)?.avgMinsPerPatient ?? 4)
+      sendSms(cleanedPhone, `MediQueue: Your token is ${patient.token_id}. Est. wait ~${waitMins} min. ${station}.`)
+
+      navigate(`/queue/${patient.token_id}`, { replace: true, state: {
+        fullName: patient.full_name, phone: patient.phone, department: patient.initial_department,
+        isPriority: patient.priority !== 'normal', tokenId: patient.token_id,
+      }})
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Something went wrong. Please try again.')
+      setLoading(false)
+    }
+  }
+
+  const selectedDept = department ? DEPARTMENTS.find(d => d.id === department) : null
 
   return (
-    <motion.div
-      className="ci-page"
-      initial={{ opacity: 0 }}
-      animate={{ opacity: 1 }}
-      transition={{ duration: 0.5 }}
-    >
-      {/* ── Status bar color fill (mobile) ── */}
-      <div className="ci-status-bar-fill" />
+    <div className="checkin">
+      <div className="checkin__content">
+        <motion.div className="checkin__hero" initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.4 }}>
+          <h1 className="checkin__title">Welcome to<br />Central Medical</h1>
+          <p className="checkin__subtitle">Please provide your details to join the queue.</p>
+        </motion.div>
 
-      {/* ── Nav ── */}
-      <nav className="ci-nav">
-        <div className="ci-nav-inner">
-          <div className="ci-brand">
-            <span className="ci-brand-icon">⚕</span>
-            <span className="ci-brand-name">MediQueue</span>
-          </div>
-          <button className="ci-nav-bell" aria-label="Notifications">
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-              <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/>
-              <path d="M13.73 21a2 2 0 0 1-3.46 0"/>
-            </svg>
-            <span className="ci-notification-dot" />
-          </button>
-        </div>
-      </nav>
-
-      <div className="ci-body">
-        {/* ── Left column ── */}
-        <div className="ci-left">
-
-          {/* Hero */}
-          <motion.div
-            className="ci-hero"
-            initial={{ x: -50, opacity: 0 }}
-            animate={{ x: 0, opacity: 1 }}
-            transition={{ duration: 0.6, delay: 0.2 }}
-          >
-            <h1 className="ci-title">
-              Welcome to<br />
-              <span className="ci-title-highlight">Central Medical</span>
-            </h1>
-            <p className="ci-subtitle">
-              Please provide your details to join the queue.
-            </p>
-          </motion.div>
-
-          {/* Patient info card */}
-          <motion.div
-            className="ci-card"
-            initial={{ y: 30, opacity: 0 }}
-            animate={{ y: 0, opacity: 1 }}
-            transition={{ duration: 0.5, delay: 0.3 }}
-          >
-            <div className="ci-card-head">
-              <svg className="ci-card-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/>
-              </svg>
-              <span className="ci-card-title">Patient Information</span>
-            </div>
-
-            {/* Full name */}
-            <div className="ci-field">
-              <label className="ci-label">
-                Full Name <span className="ci-req">*</span>
-              </label>
-              <input
-                className={`ci-input${fieldErrors.name ? ' ci-input--error' : ''}`}
-                type="text"
-                placeholder="Enter your full legal name"
-                value={fullName}
-                onChange={e => { setFullName(e.target.value); setFieldErrors(p => ({ ...p, name: undefined })); }}
-              />
+        <div className="checkin__grid">
+          <motion.div className="checkin__card" initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.1, duration: 0.4 }}>
+            <div className="checkin__card-header"><User size={18} /><span>Patient Information</span></div>
+            <div className="checkin__field">
+              <label className="checkin__label">Full Name <span className="checkin__required">*</span></label>
+              <input className={`checkin__input${fieldErrors.name ? ' checkin__input--error' : ''}`} type="text"
+                placeholder="Enter your full legal name" value={fullName}
+                onChange={e => { setFullName(e.target.value); setFieldErrors(p => ({ ...p, name: undefined })) }} />
               <AnimatePresence>
-                {fieldErrors.name && (
-                  <motion.p className="ci-field-error"
-                    initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: 'auto' }} exit={{ opacity: 0, height: 0 }}>
-                    {fieldErrors.name}
-                  </motion.p>
-                )}
+                {fieldErrors.name && <motion.p className="checkin__field-error" initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: 'auto' }} exit={{ opacity: 0, height: 0 }}>{fieldErrors.name}</motion.p>}
               </AnimatePresence>
             </div>
-
-            {/* Phone */}
-            <div className="ci-field">
-              <label className="ci-label">
-                Phone Number <span className="ci-opt">(Optional)</span>
-              </label>
-              <div className="ci-input-wrap">
-                <svg className="ci-input-pre-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                  <path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07A19.5 19.5 0 0 1 4.69 13a19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 3.6 2h3a2 2 0 0 1 2 1.72c.127.96.361 1.903.7 2.81a2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45c.907.339 1.85.573 2.81.7A2 2 0 0 1 22 16.92z"/>
-                </svg>
-                <input
-                  className={`ci-input ci-input--pre${fieldErrors.phone ? ' ci-input--error' : ''}`}
-                  type="tel"
-                  placeholder="+233 XX XXX XXXX"
-                  value={phone}
-                  onChange={e => { setPhone(e.target.value); setFieldErrors(p => ({ ...p, phone: undefined })); }}
-                />
+            <div className="checkin__field">
+              <label className="checkin__label">Phone Number <span className="checkin__required">*</span></label>
+              <div className="checkin__input-wrap">
+                <Phone size={16} className="checkin__input-icon" />
+                <input className={`checkin__input checkin__input--icon${fieldErrors.phone ? ' checkin__input--error' : ''}`}
+                  type="tel" placeholder="+233 XX XXX XXXX" value={phone}
+                  onChange={e => { setPhone(e.target.value); setFieldErrors(p => ({ ...p, phone: undefined })); checkExisting(e.target.value) }} />
               </div>
               <AnimatePresence>
                 {fieldErrors.phone ? (
-                  <motion.p className="ci-field-error"
-                    initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: 'auto' }} exit={{ opacity: 0, height: 0 }}>
-                    {fieldErrors.phone}
-                  </motion.p>
+                  <motion.p className="checkin__field-error" initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: 'auto' }} exit={{ opacity: 0, height: 0 }}>{fieldErrors.phone}</motion.p>
+                ) : existingToken ? (
+                  <motion.div className="checkin__existing" initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: 'auto' }} exit={{ opacity: 0, height: 0 }}>
+                    <AlertCircle size={16} />
+                    <span>You have an active token: <strong>{existingToken}</strong>. Continue tracking?</span>
+                    <button onClick={() => navigate(`/queue/${existingToken}`, { replace: true })}>Track →</button>
+                  </motion.div>
                 ) : (
-                  <p className="ci-hint">We'll notify you when your turn is approaching.</p>
+                  <p className="checkin__hint">We'll send your token and queue updates via SMS.</p>
                 )}
               </AnimatePresence>
             </div>
-
-            {/* Priority flag */}
-            <div className="ci-field">
-              <button
-                type="button"
-                className={`ci-priority-toggle${isPriority ? ' ci-priority-toggle--active' : ''}`}
-                onClick={() => setIsPriority(p => !p)}
-              >
-                <span className="ci-priority-toggle-icon">⚡</span>
-                <div className="ci-priority-toggle-text">
-                  <span className="ci-priority-toggle-label">Emergency / Priority</span>
-                  <span className="ci-priority-toggle-sub">Select if you need urgent attention</span>
-                </div>
-                <span className={`ci-priority-check${isPriority ? ' ci-priority-check--on' : ''}`}>
-                  {isPriority && (
-                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
-                      <polyline points="20 6 9 17 4 12"/>
-                    </svg>
-                  )}
-                </span>
-              </button>
-            </div>
+            <button type="button" className={`checkin__priority${isPriority ? ' checkin__priority--active' : ''}`} onClick={() => setIsPriority(p => !p)}>
+              <span className="checkin__priority-icon"><Zap size={20} /></span>
+              <div className="checkin__priority-text"><span>Emergency / Priority</span><span>Select if you need urgent attention</span></div>
+              <span className={`checkin__priority-check${isPriority ? ' checkin__priority-check--on' : ''}`}>
+                {isPriority && <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12" /></svg>}
+              </span>
+            </button>
           </motion.div>
 
-          {/* Department selection */}
-          <motion.div
-            className="ci-card"
-            initial={{ y: 30, opacity: 0 }}
-            animate={{ y: 0, opacity: 1 }}
-            transition={{ duration: 0.5, delay: 0.4 }}
-          >
-            <div className="ci-card-head">
-              <svg className="ci-card-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                <rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/>
-                <rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/>
+          <motion.div className="checkin__card" initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.15, duration: 0.4 }}>
+            <div className="checkin__card-header">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <rect x="3" y="3" width="7" height="7" /><rect x="14" y="3" width="7" height="7" />
+                <rect x="14" y="14" width="7" height="7" /><rect x="3" y="14" width="7" height="7" />
               </svg>
-              <span className="ci-card-title">Select Department</span>
+              <span>Select Department</span>
             </div>
-
-            <div className="ci-dept-grid">
-              {DEPARTMENTS.map((dept, index) => {
-                const stats = deptStats[dept.id];
-                const waitMins = stats.waiting === 0 ? 0 : stats.avgWaitMins;
-                const isActive = department === dept.id;
-
+            <div className="checkin__depts">
+              {DEPARTMENTS.map((dept, i) => {
+                const stats = deptStats[dept.id]
+                const isActive = department === dept.id
                 return (
-                  <motion.button
-                    key={dept.id}
-                    className={`ci-dept-card${isActive ? ' ci-dept-card--active' : ''}`}
-                    onClick={() => { setDepartment(dept.id); setError(''); }}
-                    initial={{ opacity: 0, y: 20 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    transition={{ delay: 0.5 + index * 0.1 }}
-                    whileHover={{ y: -4, scale: 1.03 }}
+                  <motion.button key={dept.id} className={`checkin__dept${isActive ? ' checkin__dept--active' : ''}`}
+                    style={{ '--dept-color': dept.color } as React.CSSProperties}
+                    onClick={() => { setDepartment(dept.id); setError('') }}
                     whileTap={{ scale: 0.97 }}
-                  >
-                    <div className="ci-dept-icon-wrap">
-                      <span className="ci-dept-emoji">{dept.icon}</span>
-                    </div>
-                    <span className="ci-dept-name">{dept.label}</span>
-                    <span className="ci-dept-sub">{dept.sub}</span>
-                    <span className={`ci-dept-wait${stats.waiting === 0 ? ' ci-dept-wait--clear' : ''}`}>
-                      {stats.waiting === 0 ? 'No wait' : `~${waitMins} min`}
+                    initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.2 + i * 0.05 }}>
+                    <span className="checkin__dept-emoji">{dept.icon}</span>
+                    <span className="checkin__dept-name">{dept.label}</span>
+                    <span className="checkin__dept-sub">{dept.sub}</span>
+                    <span className={`checkin__dept-wait${stats.waiting === 0 ? ' checkin__dept-wait--clear' : ''}`}>
+                      {stats.waiting === 0 ? 'No wait' : <span className="checkin__dept-wait-flex"><Clock size={11} />~{stats.waiting} patient{stats.waiting !== 1 ? 's' : ''}</span>}
                     </span>
-
                     <AnimatePresence>
-                      {isActive && (
-                        <motion.span
-                          className="ci-dept-check"
-                          initial={{ scale: 0, rotate: -180 }}
-                          animate={{ scale: 1, rotate: 0 }}
-                          exit={{ scale: 0, rotate: 180 }}
-                          transition={{ type: 'spring', stiffness: 500, damping: 30 }}
-                        >
-                          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                            <polyline points="20 6 9 17 4 12"/>
-                          </svg>
-                        </motion.span>
-                      )}
+                      {isActive && <motion.span className="checkin__dept-check" initial={{ scale: 0 }} animate={{ scale: 1 }} exit={{ scale: 0 }} transition={{ type: 'spring', stiffness: 500, damping: 30 }}>
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12" /></svg>
+                      </motion.span>}
                     </AnimatePresence>
                   </motion.button>
-                );
+                )
               })}
             </div>
-
-            {/* Selected dept wait callout */}
             <AnimatePresence>
-              {selectedDeptWait !== null && (
-                <motion.div
-                  className="ci-dept-callout"
-                  initial={{ opacity: 0, height: 0 }}
-                  animate={{ opacity: 1, height: 'auto' }}
-                  exit={{ opacity: 0, height: 0 }}
-                >
-                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                    <circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/>
-                  </svg>
-                  {selectedDeptWait === 0
-                    ? `${department} queue is clear — you'll be seen almost immediately.`
-                    : `Current wait for ${department}: ~${selectedDeptWait} min with ${deptStats[department!].waiting} patient${deptStats[department!].waiting !== 1 ? 's' : ''} ahead.`}
+              {selectedDept && (
+                <motion.div className="checkin__dept-info" initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: 'auto' }} exit={{ opacity: 0, height: 0 }}>
+                  <Clock size={14} />
+                  <span>{deptStats[department!].waiting === 0 ? `${selectedDept.label} queue is clear — you'll be seen almost immediately.` : `Current wait for ${selectedDept.label}: ~${deptStats[department!].avgWaitMins} min with ${deptStats[department!].waiting} ahead.`}</span>
                 </motion.div>
               )}
             </AnimatePresence>
           </motion.div>
 
-          {/* Form-level error */}
           <AnimatePresence>
-            {error && (
-              <motion.p
-                className="ci-error"
-                initial={{ opacity: 0, y: -10, height: 0 }}
-                animate={{ opacity: 1, y: 0, height: 'auto' }}
-                exit={{ opacity: 0, y: -10, height: 0 }}
-              >
-                {error}
-              </motion.p>
-            )}
+            {error && <motion.div className="checkin__error" initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }}>{error}</motion.div>}
           </AnimatePresence>
 
-          {/* Submit */}
-          <motion.button
-            className="ci-submit"
-            onClick={handleSubmit}
-            disabled={loading}
-            whileHover={!loading ? { scale: 1.02, boxShadow: '0 10px 25px rgba(0,33,71,0.3)' } : {}}
-            whileTap={!loading ? { scale: 0.98 } : {}}
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.6 }}
-          >
-            {loading ? (
-              <span className="ci-submit-loading">
-                Processing
-                <motion.span
-                  className="ci-dots"
-                  animate={{ opacity: [1, 0.3, 1] }}
-                  transition={{ duration: 1.5, repeat: Infinity }}
-                >
-                  ...
-                </motion.span>
-              </span>
-            ) : (
-              <span className="ci-submit-content">
-                Get Queue Number <span className="ci-arrow">→</span>
-              </span>
-            )}
-          </motion.button>
-        </div>
+          <motion.div className="checkin__submit-wrap" initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.25 }}>
+            <button className="checkin__submit" onClick={handleSubmit} disabled={loading}>
+              {loading ? <span className="checkin__submit-loading"><span className="checkin__spinner" />Processing</span>
+                : <span className="checkin__submit-text">{existingToken ? 'Track Existing Token' : 'Get Queue Number'} <ChevronRight size={20} /></span>}
+            </button>
+          </motion.div>
 
-        {/* ── Right column ── */}
-        <motion.div
-          className="ci-right"
-          initial={{ x: 50, opacity: 0 }}
-          animate={{ x: 0, opacity: 1 }}
-          transition={{ duration: 0.6, delay: 0.4 }}
-        >
-          <div className="ci-status-card">
-            <div className="ci-status-top">
-              <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="rgba(255,255,255,0.7)" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
-                <circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/>
-              </svg>
-              <div>
-                <p className="ci-status-label">
-                  {department ? `${department} Queue` : 'Select a Department'}
-                </p>
-                <p className="ci-status-time">
-                  {department
-                    ? `${deptStats[department].waiting} patient${deptStats[department].waiting !== 1 ? 's' : ''} ahead`
-                    : '—'}
-                </p>
+          <div className="checkin__stats">
+            {DEPARTMENTS.map(dept => (
+              <div key={dept.id} className="checkin__stat" style={{ '--dept-color': dept.color } as React.CSSProperties}>
+                <span className="checkin__stat-icon">{dept.icon}</span>
+                <span className="checkin__stat-label">{dept.label}</span>
+                <span className="checkin__stat-count">{deptStats[dept.id].waiting > 0 ? <CountUp to={deptStats[dept.id].waiting} duration={1} /> : '0'}</span>
+                <span className="checkin__stat-sub">waiting</span>
               </div>
-            </div>
-
-            <div className="ci-status-divider" />
-
-            <div className="ci-status-live-row">
-              <span className="ci-live-badge">
-                <LiveDot />
-                LIVE
-              </span>
-              <span className="ci-status-subtitle">
-                {department ? `${deptStats[department].waiting === 0 ? 'No wait' : `~${deptStats[department].avgWaitMins} min wait`}` : 'Queue Status'}
-              </span>
-            </div>
-
-            <div className="ci-status-items">
-              {DEPARTMENTS.filter(d => !department || d.id === department).map((dept, index) => {
-                const stats = deptStats[dept.id];
-                return (
-                  <motion.div
-                    key={dept.id}
-                    className="ci-status-item"
-                    initial={{ opacity: 0, x: -20 }}
-                    animate={{ opacity: 1, x: 0 }}
-                    transition={{ delay: 0.6 + index * 0.1 }}
-                  >
-                    <span className="ci-status-dept">{dept.label} Queue</span>
-                    <span className={`ci-status-count${stats.waiting === 0 ? ' ci-status-count--clear' : ''}`}>
-                      {stats.waiting === 0 ? 'Clear' : `${stats.waiting} waiting`}
-                    </span>
-                  </motion.div>
-                );
-              })}
-            </div>
-
-            <div className="ci-status-divider" />
-
-            <p className="ci-status-quote">
-              "We prioritize efficiency to ensure you receive the care you need as quickly as possible."
-            </p>
+            ))}
           </div>
-
-          <p className="ci-copyright">
-            © 2025 MediQueue Health Systems. All Patient Data is Encrypted.
-          </p>
-        </motion.div>
+        </div>
       </div>
-    </motion.div>
-  );
+    </div>
+  )
 }
