@@ -1,12 +1,13 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { motion } from 'framer-motion'
-import { ArrowRight, CheckCircle2, Clock3, LogOut, Users, AlertTriangle, UserRound } from 'lucide-react'
+import { ArrowRight, CheckCircle2, Clock3, LogOut, Users, AlertTriangle, UserRound, AlertCircle } from 'lucide-react'
 import CountUp from '../../components/reactbits/CountUp'
 import { useAuth } from '../../context/AuthContext'
 import { useRealtimeQueue } from '../../hooks/useRealtimeQueue'
 import { announcePatient } from '../../lib/announce'
 import { signOut } from '../../lib/auth'
+import { sendSms } from '../../lib/sms'
 import { supabase } from '../../lib/supabase'
 import { queueService } from '../../services/queueService'
 import type { QueueEntry } from '../../types'
@@ -31,6 +32,7 @@ export default function StaffPortal() {
   const [currentServing, setCurrentServing] = useState<QueueEntry | null>(null)
   const [seenToday, setSeenToday] = useState(0)
   const [announcement, setAnnouncement] = useState<string | null>(null)
+  const [actionError, setActionError] = useState<string | null>(null)
   const [sessionTime, setSessionTime] = useState(new Date())
   const [consultElapsed, setConsultElapsed] = useState(0)
 
@@ -38,7 +40,8 @@ export default function StaffPortal() {
 
   const fetchQueue = useCallback(async () => {
     if (!department) return
-    try { const data = await queueService.getQueueByDepartment(department); setQueue(data) } catch { /* ignore */ }
+    try { const data = await queueService.getQueueByDepartment(department); setQueue(data) }
+    catch (err) { console.error('[StaffPortal] fetchQueue failed:', err) }
     finally { setLoading(false) }
   }, [department])
 
@@ -56,6 +59,7 @@ export default function StaffPortal() {
   const avgWait = queue.length > 0 ? Math.round(queue.reduce((s, e) => s + e.wait_time_minutes, 0) / queue.length) : 0
 
   const showAnnouncement = useCallback((msg: string) => { setAnnouncement(msg); window.setTimeout(() => setAnnouncement(null), 4500) }, [])
+  const showError = useCallback((msg: string) => { setActionError(msg); window.setTimeout(() => setActionError(null), 5000) }, [])
 
   const handleCallNext = async () => {
     if (queue.length === 0) return
@@ -66,19 +70,24 @@ export default function StaffPortal() {
       const { data: patient } = await supabase.from('patients').select('phone').eq('id', np.id).single()
       if (patient?.phone) {
         const station = department === 'OPD' ? 'Room 3, West Wing' : department === 'Lab' ? 'Lab-1, East Wing' : department === 'Pharmacy' ? 'Counter 2, Main Hall' : 'Ward 1, East Wing'
-        fetch('https://sms.arkesel.com/api/v2/sms/send', {
-          method: 'POST', headers: { 'Content-Type': 'application/json', 'api-key': 'bUZZcmpZZkt6RVNMSmxhdXdVYlA' },
-          body: JSON.stringify({ sender: 'MediQueue', recipients: [patient.phone], message: `MediQueue: Your turn now! Please proceed to ${station}.` }),
-        }).catch(() => {})
+        const { ok } = await sendSms(patient.phone, `MediQueue: Your turn now! Please proceed to ${station}.`)
+        if (!ok) console.warn('[StaffPortal] SMS not delivered for', patient.phone)
       }
       setQueue(p => p.filter(e => e.id !== np.id)); setCurrentServing(np); setConsultElapsed(0)
       announcePatient(np.queue_number, department, np.full_name)
       showAnnouncement(`Now calling ${np.full_name} • #${np.queue_number}`)
-    } catch { /* ignore */ }
+    } catch (err) { console.error('[StaffPortal] callNext failed:', err); showError('Could not call the next patient. Please try again.') }
   }
 
   const handleSelectPatient = async (entry: QueueEntry) => {
     if (staff?.id) await queueService.assignPatientToStaff(entry.id, staff.id).catch(() => {})
+    setQueue(p => { const n = [...p]; if (currentServing) n.push(currentServing); return n.filter(i => i.id !== entry.id) })
+    setCurrentServing(entry); setConsultElapsed(0)
+    showAnnouncement(`Selected ${entry.full_name} • #${entry.queue_number}`)
+  }
+
+  const handleSelectPatient = async (entry: QueueEntry) => {
+    if (staff?.id) await queueService.assignPatientToStaff(entry.id, staff.id).catch((err) => console.error('[StaffPortal] assign failed:', err))
     setQueue(p => { const n = [...p]; if (currentServing) n.push(currentServing); return n.filter(i => i.id !== entry.id) })
     setCurrentServing(entry); setConsultElapsed(0)
     showAnnouncement(`Selected ${entry.full_name} • #${entry.queue_number}`)
@@ -92,7 +101,7 @@ export default function StaffPortal() {
       setCurrentServing(null)
       setConsultElapsed(0)
       fetchQueue()
-    } catch { /* ignore */ }
+    } catch (err) { console.error('[StaffPortal] requeue failed:', err); showError('Could not re-queue the patient.') }
   }
 
   const handleMoveStage = async (stage: string, status: string) => {
@@ -104,7 +113,7 @@ export default function StaffPortal() {
       setCurrentServing(null)
       setConsultElapsed(0)
       fetchQueue()
-    } catch { /* ignore */ }
+    } catch (err) { console.error('[StaffPortal] moveStage failed:', err); showError('Could not move the patient. Please try again.') }
   }
 
   const handleMarkDone = async () => {
@@ -116,7 +125,7 @@ export default function StaffPortal() {
       setSeenToday(p => p + 1)
       setConsultElapsed(0)
       fetchQueue()
-    } catch { /* ignore */ }
+    } catch (err) { console.error('[StaffPortal] markDone failed:', err); showError('Could not complete the visit. Please try again.') }
   }
 
   const handleSignOut = async () => { await signOut(); navigate('/staff/login', { replace: true }) }
@@ -139,6 +148,12 @@ export default function StaffPortal() {
 
       {announcement && (
         <motion.div className="sp-announce" initial={{ opacity: 0, y: -20 }} animate={{ opacity: 1, y: 0 }}>{announcement}</motion.div>
+      )}
+
+      {actionError && (
+        <motion.div className="sp-error" initial={{ opacity: 0, y: -20 }} animate={{ opacity: 1, y: 0 }}>
+          <AlertCircle size={16} /><span>{actionError}</span>
+        </motion.div>
       )}
 
       <div className="sp-body">

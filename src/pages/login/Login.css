@@ -21,7 +21,6 @@
 .login__btn-loading { display: flex; align-items: center; gap: 10px; }
 .login__spinner { width: 18px; height: 18px; border: 2.5px solid rgba(255,255,255,0.3); border-top-color: #fff; border-radius: 50%; animation: spin 0.7s linear infinite; }
 @keyframes spin { to { transform: rotate(360deg); } }
-.login__demo { text-align: center; font-size: 0.6875rem; color: #7D9BA5; margin: 0; }
 .login__footer-link { text-align: center; font-size: 0.8125rem; color: #5C7A82; }
 .login__footer-link a { color: #00A896; font-weight: 600; text-decoration: none; }
 @media (max-width: 480px) { .login__content { padding: 12px; } .login__card { padding: 28px 18px; border-radius: 16px; } .login__title { font-size: 1.5rem; } }

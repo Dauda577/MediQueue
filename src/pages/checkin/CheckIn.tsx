@@ -6,6 +6,7 @@ import CountUp from '../../components/reactbits/CountUp'
 import { useRealtimeQueue } from '../../hooks/useRealtimeQueue'
 import { queueService } from '../../services/queueService'
 import { supabase } from '../../lib/supabase'
+import { sendSms } from '../../lib/sms'
 import './CheckIn.css'
 
 type DepartmentId = 'OPD' | 'Lab' | 'Pharmacy' | 'Maternity'
@@ -37,20 +38,6 @@ function validatePhone(phone: string): string | null {
   const cleaned = phone.replace(/[\s\-().]/g, '')
   if (!/^(\+233|0)\d{9}$/.test(cleaned)) return 'Enter a valid Ghanaian number, e.g. 024 XXX XXXX'
   return null
-}
-
-async function sendSms(phone: string, message: string) {
-  try {
-    await fetch('https://sms.arkesel.com/api/v2/sms/send', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'api-key': 'bUZZcmpZZkt6RVNMSmxhdXdVYlA' },
-      body: JSON.stringify({
-        sender: 'MediQueue',
-        recipients: [cleanPhone(phone)],
-        message,
-      }),
-    })
-  } catch { /* silent — don't block UI */ }
 }
 
 export default function CheckIn() {

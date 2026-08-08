@@ -51,7 +51,6 @@ export default function Login() {
           <button className="login__btn" onClick={handleLogin} disabled={loading || !email || !password}>
             {loading ? <span className="login__btn-loading"><span className="login__spinner" />Signing in</span> : <span className="login__btn-text">Sign In <ArrowRight size={18} /></span>}
           </button>
-          <p className="login__demo">Demo: staff@demo.com / staff1234</p>
         </motion.div>
       </div>
     </div>
