@@ -86,13 +86,6 @@ export default function StaffPortal() {
     showAnnouncement(`Selected ${entry.full_name} • #${entry.queue_number}`)
   }
 
-  const handleSelectPatient = async (entry: QueueEntry) => {
-    if (staff?.id) await queueService.assignPatientToStaff(entry.id, staff.id).catch((err) => console.error('[StaffPortal] assign failed:', err))
-    setQueue(p => { const n = [...p]; if (currentServing) n.push(currentServing); return n.filter(i => i.id !== entry.id) })
-    setCurrentServing(entry); setConsultElapsed(0)
-    showAnnouncement(`Selected ${entry.full_name} • #${entry.queue_number}`)
-  }
-
   const handleRequeue = async () => {
     if (!currentServing) return
     try {
