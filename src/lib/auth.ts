@@ -1,5 +1,5 @@
 import { supabase } from './supabase';
-import type { StaffMember } from '../types';
+import type { StaffMember, StaffRole, Stage } from '../types';
 
 const DEMO_STAFF = {
   'staff@demo.com': {
@@ -57,7 +57,6 @@ function getDemoStaff(email: string, password: string): StaffMember | null {
   return record && passwordMap[normalizedEmail] === password ? record : null;
 }
 
-// ── Sign In
 export async function signIn(email: string, password: string) {
   const demoStaff = getDemoStaff(email, password);
   if (demoStaff) {
@@ -74,14 +73,12 @@ export async function signIn(email: string, password: string) {
   return data;
 }
 
-// ── Sign Out
 export async function signOut() {
   localStorage.removeItem('demo_staff');
   const { error } = await supabase.auth.signOut();
   if (error) throw error;
 }
 
-// ── Get current staff member record
 export async function getCurrentStaff(): Promise<StaffMember | null> {
   const demoStaff = localStorage.getItem('demo_staff');
   if (demoStaff) {
@@ -113,8 +110,6 @@ export async function getCurrentStaff(): Promise<StaffMember | null> {
   return data;
 }
 
-// ── Listen for auth state changes
-// Call once at app startup — fires on sign in, sign out, and invite link clicks
 export function onAuthStateChange(callback: (staff: StaffMember | null) => void) {
   return supabase.auth.onAuthStateChange(async (_event: unknown, session: { user?: { id: string } } | null) => {
     if (!session) {
@@ -125,4 +120,46 @@ export function onAuthStateChange(callback: (staff: StaffMember | null) => void)
     const staff = await getCurrentStaff();
     callback(staff);
   });
+}
+
+function generateTempPassword(): string {
+  const chars = 'abcdefghjkmnpqrstuvwxyzABCDEFGHJKMNPQRSTUVWXYZ23456789'
+  let result = ''
+  for (let i = 0; i < 12; i++) {
+    result += chars.charAt(Math.floor(Math.random() * chars.length))
+  }
+  return result
+}
+
+export async function inviteStaffMember(data: {
+  email: string
+  name: string
+  role: StaffRole
+  department: Stage
+  station?: string
+}): Promise<{ tempPassword: string }> {
+  const tempPassword = generateTempPassword()
+
+  const { data: authData, error: authError } = await supabase.auth.signUp({
+    email: data.email,
+    password: tempPassword,
+    options: { data: { name: data.name, role: data.role } },
+  })
+
+  if (authError) throw authError
+  if (!authData.user) throw new Error('Failed to create user account')
+
+  const { error: staffError } = await supabase
+    .from('staff_members')
+    .insert({
+      user_id: authData.user.id,
+      name: data.name,
+      role: data.role,
+      department: data.department,
+      station: data.station || null,
+      is_active: true,
+    })
+
+  if (staffError) throw staffError
+  return { tempPassword }
 }

@@ -1,4 +1,4 @@
-import { createContext, useContext, useEffect, useState } from 'react';
+import { createContext, useContext, useEffect, useState, useRef } from 'react';
 import type { ReactNode } from 'react';
 import { onAuthStateChange, getCurrentStaff } from '../lib/auth';
 import type { StaffMember } from '../types';
@@ -16,21 +16,31 @@ const AuthContext = createContext<AuthContextType>({
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [staff, setStaff] = useState<StaffMember | null>(null);
   const [loading, setLoading] = useState(true);
+  const initialized = useRef(false);
 
   useEffect(() => {
-    // Check for existing session on mount
-    getCurrentStaff().then((staffMember) => {
-      setStaff(staffMember);
-      setLoading(false);
-    });
+    let cancelled = false;
 
-    // Listen for auth state changes (handles invite links too)
-    const authSubscription = onAuthStateChange((staffMember) => {
+    (async () => {
+      const staffMember = await getCurrentStaff();
+      if (cancelled) return;
       setStaff(staffMember);
       setLoading(false);
+      initialized.current = true;
+    })();
+
+    const authSubscription = onAuthStateChange((staffMember) => {
+      if (!initialized.current && staffMember) {
+        setStaff(staffMember);
+        setLoading(false);
+        initialized.current = true;
+      } else if (staffMember) {
+        setStaff(staffMember);
+      }
     });
 
     return () => {
+      cancelled = true;
       if (authSubscription && typeof authSubscription === 'object' && 'subscription' in authSubscription) {
         const subscription = authSubscription.subscription as { unsubscribe?: () => void } | undefined;
         subscription?.unsubscribe?.();
