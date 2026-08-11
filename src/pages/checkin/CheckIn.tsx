@@ -4,7 +4,7 @@ import { motion, AnimatePresence } from 'framer-motion'
 import { User, Phone, ChevronRight, Zap, Clock, AlertCircle } from 'lucide-react'
 import CountUp from '../../components/reactbits/CountUp'
 import { useRealtimeQueue } from '../../hooks/useRealtimeQueue'
-import { queueService } from '../../services/queueService'
+import { queueService, isTokenExpired } from '../../services/queueService'
 import { supabase } from '../../lib/supabase'
 import { sendSms } from '../../lib/sms'
 import './CheckIn.css'
@@ -79,9 +79,12 @@ export default function CheckIn() {
     const stored = localStorage.getItem('activeToken')
     if (!stored) return
     redirectGuard.current = true
-    supabase.from('patients').select('token_id, status').eq('token_id', stored).maybeSingle().then(({ data }) => {
-      if (data && data.status !== 'done' && data.status !== 'cancelled') navigate(`/queue/${data.token_id}`, { replace: true })
-      else localStorage.removeItem('activeToken')
+    supabase.from('patients').select('token_id, status, checked_in_at').eq('token_id', stored).maybeSingle().then(({ data }) => {
+      if (data && data.status !== 'done' && data.status !== 'cancelled' && !isTokenExpired(data.checked_in_at)) {
+        navigate(`/queue/${data.token_id}`, { replace: true })
+      } else {
+        localStorage.removeItem('activeToken')
+      }
     })
   }, [navigate])
 
@@ -130,7 +133,7 @@ export default function CheckIn() {
         : department === 'Pharmacy' ? 'Counter 2, Main Hall'
         : 'Ward 1, East Wing'
       const waitMins = (deptStats[department!]?.avgWaitMins ?? 0) + (DEPARTMENTS.find(d => d.id === department)?.avgMinsPerPatient ?? 4)
-      sendSms(cleanedPhone, `MediQueue: Your token is ${patient.token_id}. Est. wait ~${waitMins} min. ${station}.`)
+      sendSms(cleanedPhone, `MediQueue: Your token is ${patient.token_id}. Est. wait ~${waitMins} min. ${station}. Valid for 24 hours.`)
 
       navigate(`/queue/${patient.token_id}`, { replace: true, state: {
         fullName: patient.full_name, phone: patient.phone, department: patient.initial_department,

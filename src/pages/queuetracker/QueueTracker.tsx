@@ -6,6 +6,7 @@ import CountUp from '../../components/reactbits/CountUp'
 import { useRealtimeAlerts } from '../../hooks/useRealtimeAlerts'
 import { announcePatient } from '../../lib/announce'
 import { supabase } from '../../lib/supabase'
+import { isTokenExpired, expiryFloor, TOKEN_EXPIRY_MS } from '../../services/queueService'
 import './QueueTracker.css'
 
 const STAGES = [
@@ -57,36 +58,67 @@ interface QueueData {
 }
 
 export default function QueueTracker() {
-  const { tokenId: paramToken } = useParams()
+const { tokenId: paramToken } = useParams()
   const { state } = useLocation()
   const navigate = useNavigate()
   const token = (state as Record<string, string> | null)?.tokenId || paramToken || ''
+  const isFreshGeneration = !!(state as Record<string, string> | null)?.tokenId
 
   const [queueData, setQueueData] = useState<QueueData | null>(null)
   const [loading, setLoading] = useState(true)
   const [toast, setToast] = useState<string | null>(null)
+  const [expired, setExpired] = useState(false)
   const alertFiredRef = useRef(false)
+  const validityToastShownRef = useRef(false)
+  const expiryTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const fetchDataRef = useRef<((tokenId: string) => Promise<void>) | null>(null)
 
   const showToast = useCallback((msg: string) => { setToast(msg); setTimeout(() => setToast(null), 5000) }, [])
 
   const fetchData = useCallback(async (tokenId: string) => {
     if (!tokenId) return
-    const today = new Date().toISOString().split('T')[0]
     const patientRes = await supabase.from('patients').select('*').eq('token_id', tokenId).maybeSingle()
     if (patientRes.error || !patientRes.data) { setLoading(false); return }
     const p = patientRes.data; const dept = p.initial_department
+
+    const tokenIsDone = p.status === 'done' || p.status === 'cancelled'
+    if (!tokenIsDone && isTokenExpired(p.checked_in_at)) {
+      localStorage.removeItem('activeToken')
+      setQueueData(null)
+      setExpired(true)
+      setLoading(false)
+      return
+    }
+
     const queueRes = await supabase.from('patients').select('id', { count: 'exact', head: true })
-      .eq('current_stage', dept).eq('status', 'waiting').gte('checked_in_at', today)
+      .eq('current_stage', dept).eq('status', 'waiting').gte('checked_in_at', expiryFloor())
     setQueueData({
       tokenId: p.token_id, fullName: p.full_name, department: p.initial_department,
       isPriority: p.priority !== 'normal', position: p.position, total: queueRes.count ?? 0,
       stage: deriveStage(p.status), stationRoom: STATION_MAP[dept]?.room ?? 'Reception',
       stationWing: STATION_MAP[dept]?.wing ?? 'Main Building', status: p.status,
     })
+    setExpired(false)
     setLoading(false)
-  }, [])
 
-  useEffect(() => { if (token) fetchData(token) }, [token, fetchData])
+    if (isFreshGeneration && !validityToastShownRef.current) {
+      validityToastShownRef.current = true
+      showToast('Your token is valid for 24 hours.')
+    }
+
+    const msUntilExpiry = Date.parse(p.checked_in_at) + TOKEN_EXPIRY_MS - Date.now()
+    if (expiryTimerRef.current) clearTimeout(expiryTimerRef.current)
+    if (!tokenIsDone && msUntilExpiry > 0) {
+      expiryTimerRef.current = setTimeout(() => fetchDataRef.current?.(tokenId), msUntilExpiry)
+    }
+  }, [isFreshGeneration, showToast])
+
+  useEffect(() => { fetchDataRef.current = fetchData })
+
+  useEffect(() => {
+    if (token) fetchData(token)
+    return () => { if (expiryTimerRef.current) clearTimeout(expiryTimerRef.current) }
+  }, [token, fetchData])
 
   useEffect(() => {
     if (!queueData) return
@@ -116,7 +148,10 @@ export default function QueueTracker() {
   if (loading) return <div className="qt-page"><div className="qt-loading">Loading your queue...</div></div>
 
   if (!queueData) return (
-    <div className="qt-page"><div className="qt-empty"><p>Queue not found</p><button onClick={() => navigate('/checkin')}>Go to Check-in</button></div></div>
+    <div className="qt-page"><div className="qt-empty">
+      <p>{expired ? 'Your token has expired. It is valid for 24 hours.' : 'Queue not found'}</p>
+      <button onClick={() => { localStorage.removeItem('activeToken'); navigate('/checkin') }}>Go to Check-in</button>
+    </div></div>
   )
 
   const currentIdx = stageIndex(queueData.stage)

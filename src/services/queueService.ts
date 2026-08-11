@@ -10,6 +10,11 @@ import type {
 
 type Department = 'OPD' | 'Lab' | 'Pharmacy' | 'Maternity'
 
+export const TOKEN_EXPIRY_MS = 24 * 60 * 60 * 1000
+export const expiryFloor = () => new Date(Date.now() - TOKEN_EXPIRY_MS).toISOString()
+export const isTokenExpired = (checkedInAt: string | null | undefined) =>
+  !checkedInAt || Date.parse(checkedInAt) + TOKEN_EXPIRY_MS < Date.now()
+
 export const queueService = {
 
   // DEPARTMENT / STAGE METHODS
@@ -28,13 +33,12 @@ export const queueService = {
 
 
   async findActiveByPhone(phone: string): Promise<Patient | null> {
-    const today = new Date().toISOString().split('T')[0]
     const { data, error } = await supabase
       .from('patients')
       .select('*')
       .eq('phone', phone)
       .not('status', 'in', '("done","cancelled")')
-      .gte('checked_in_at', today)
+      .gte('checked_in_at', expiryFloor())
       .order('checked_in_at', { ascending: false })
       .limit(1)
       .maybeSingle()
@@ -74,13 +78,12 @@ export const queueService = {
   async getQueueByDepartment(
     department: Department
   ): Promise<QueueEntry[]> {
-    const today = new Date().toISOString().split('T')[0]
     const { data, error } = await supabase
       .from('patients')
       .select('id, token_id, full_name, queue_number, current_stage, status, priority, position, checked_in_at')
       .eq('current_stage', department)
       .eq('status', 'waiting')
-      .gte('checked_in_at', today)
+      .gte('checked_in_at', expiryFloor())
       .order('priority', { ascending: true })
       .order('position', { ascending: true })
 
@@ -106,13 +109,12 @@ export const queueService = {
   async callNextPatient(
     department: Department
   ): Promise<QueueEntry> {
-    const today = new Date().toISOString().split('T')[0]
     const { data, error } = await supabase
       .from('patients')
       .select('id, token_id, full_name, queue_number, current_stage, status, priority, position, checked_in_at')
       .eq('current_stage', department)
       .eq('status', 'waiting')
-      .gte('checked_in_at', today)
+      .gte('checked_in_at', expiryFloor())
       .order('priority', { ascending: true })
       .order('position', { ascending: true })
       .limit(1)
