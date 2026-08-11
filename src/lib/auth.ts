@@ -107,6 +107,9 @@ export async function inviteStaffMember(data: {
       is_active: true,
     })
 
+  if (staffError?.code === '23505') {
+    throw new Error('A staff account already exists for this email.')
+  }
   if (staffError) throw staffError
   return { tempPassword }
 }
