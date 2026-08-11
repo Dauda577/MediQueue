@@ -116,6 +116,7 @@ export default function App() {
 
   const sendInvite = useCallback(async () => {
     if (!form.name || !form.email || !form.station.trim()) return
+    if (inviting) return
     setInviting(true); setInvMsg(null)
     try {
       const result = await inviteStaffMember({

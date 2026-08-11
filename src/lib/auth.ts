@@ -76,15 +76,25 @@ export async function inviteStaffMember(data: {
   station?: string
 }): Promise<{ tempPassword: string }> {
   const tempPassword = generateTempPassword()
+  const redirectTo = `${window.location.origin}/accept-invite`
 
   const { data: authData, error: authError } = await supabase.auth.signUp({
     email: data.email,
     password: tempPassword,
-    options: { data: { name: data.name, role: data.role } },
+    options: {
+      emailRedirectTo: redirectTo,
+      data: { name: data.name, role: data.role },
+    },
   })
 
+  if (authError?.message?.toLowerCase().includes('already') || authError?.message?.toLowerCase().includes('registered')) {
+    throw new Error('A staff account already exists for this email.')
+  }
   if (authError) throw authError
   if (!authData.user) throw new Error('Failed to create user account')
+  if (!authData.user.identities || authData.user.identities.length === 0) {
+    throw new Error('A staff account already exists for this email.')
+  }
 
   const { error: staffError } = await supabase
     .from('staff_members')
