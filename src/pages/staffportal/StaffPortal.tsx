@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { motion } from 'framer-motion'
-import { ArrowRight, CheckCircle2, Clock3, LogOut, Users, AlertTriangle, UserRound, AlertCircle } from 'lucide-react'
+import { ArrowRight, CheckCircle2, Clock3, LogOut, Users, AlertTriangle, UserRound, AlertCircle, X } from 'lucide-react'
 import AppLogo from '../../components/AppLogo'
 import CountUp from '../../components/reactbits/CountUp'
 import { useAuth } from '../../context/AuthContext'
@@ -36,6 +36,7 @@ export default function StaffPortal() {
   const [actionError, setActionError] = useState<string | null>(null)
   const [sessionTime, setSessionTime] = useState(new Date())
   const [consultElapsed, setConsultElapsed] = useState(0)
+  const [confirmSignOut, setConfirmSignOut] = useState(false)
 
   useEffect(() => { if (staff?.department) setDepartment(staff.department as Department) }, [staff?.department])
 
@@ -122,7 +123,7 @@ export default function StaffPortal() {
     } catch (err) { console.error('[StaffPortal] markDone failed:', err); showError('Could not complete the visit. Please try again.') }
   }
 
-  const handleSignOut = async () => { await signOut(); navigate('/staff/login', { replace: true }) }
+  const handleSignOut = async () => { try { await signOut() } catch { /* */ } navigate('/staff/login', { replace: true }) }
 
   if (authLoading || loading) return <div className="sp-loading">Loading staff dashboard...</div>
   if (!staff) return <div className="sp-loading">Please sign in to continue.</div>
@@ -136,7 +137,7 @@ export default function StaffPortal() {
         </div>
         <div className="sp-header-right">
           <div className="sp-clock"><span className="sp-clock-time">{formatClock(sessionTime)}</span><span className="sp-clock-date">{formatDate(sessionTime)}</span></div>
-          <button className="sp-signout-btn" onClick={handleSignOut}><LogOut size={16} /></button>
+          <button className="sp-signout-btn" onClick={() => setConfirmSignOut(true)}><LogOut size={16} /></button>
         </div>
       </header>
 
@@ -239,6 +240,18 @@ export default function StaffPortal() {
           </div>
         </div>
       </div>
+
+      {confirmSignOut && (
+        <div className="sp-overlay" onClick={() => setConfirmSignOut(false)}>
+          <motion.div className="sp-confirm-modal" onClick={e => e.stopPropagation()} initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} transition={{ duration: 0.2 }}>
+            <div className="sp-confirm-header"><h2>Sign Out?</h2><button className="sp-confirm-close" onClick={() => setConfirmSignOut(false)}><X size={16} /></button></div>
+            <div className="sp-confirm-body">
+              <p>You will be signed out of the staff portal. Any unsaved queue actions will be lost.</p>
+            </div>
+            <div className="sp-confirm-footer"><button className="sp-confirm-cancel" onClick={() => setConfirmSignOut(false)}>Cancel</button><button className="sp-confirm-ok" onClick={() => { setConfirmSignOut(false); handleSignOut() }}><LogOut size={14} /> Sign Out</button></div>
+          </motion.div>
+        </div>
+      )}
     </div>
   )
 }

@@ -42,6 +42,7 @@ export default function App() {
   const { staff: currentStaff } = useAuth()
   const [tab, setTab] = useState<Tab>('queue'); const [dept, setDept] = useState<Stage>('OPD')
   const [queue, setQueue] = useState<Entry[]>([]); const [serving, setServing] = useState<Entry | null>(null)
+  const [waitingCounts, setWaitingCounts] = useState<Record<string, number>>({}); const [confirmSignOut, setConfirmSignOut] = useState(false)
   const [paused, setPaused] = useState(false); const [search, setSearch] = useState('')
   const [fStatus, setFStatus] = useState('all'); const [fPri, setFPri] = useState('all')
   const [sel, setSel] = useState<Set<string>>(new Set()); const [modal, setModal] = useState<Entry | null>(null)
@@ -55,6 +56,7 @@ export default function App() {
   const [priorityData, setPriorityData] = useState<{ p: string; c: number }[]>([]); const [hourlyData, setHourlyData] = useState<{ h: string; c: number }[]>([])
 
   const fetchQueue = useCallback(async () => { try { const d = await queueService.getQueueByDepartment(dept); setQueue(d.map(q => ({ ...q, department: q.current_stage, arrived_at: q.checked_in_at }))) } catch { /* */ } }, [dept])
+  const fetchWaitingCounts = useCallback(async () => { try { setWaitingCounts(await queueService.getWaitingCounts()) } catch { /* */ } }, [])
   const fetchStaff = useCallback(async () => { try { const d = await queueService.getStaffMembers(); setStaff(d.map(s => ({ ...s, patients_today: 0 }))) } catch { /* */ } }, [])
   const fetchReports = useCallback(async () => {
     const today = new Date().toISOString().split('T')[0]
@@ -76,7 +78,7 @@ export default function App() {
     } catch { /* */ }
   }, [])
 
-  useEffect(() => { fetchQueue(); fetchStaff() }, [fetchQueue, fetchStaff])
+  useEffect(() => { fetchQueue(); fetchWaitingCounts(); fetchStaff() }, [fetchQueue, fetchWaitingCounts, fetchStaff])
   useEffect(() => { if (tab === 'reports') fetchReports() }, [tab, fetchReports])
 
   // Department-scoped KPIs
@@ -134,7 +136,7 @@ export default function App() {
 
   const copyToClipboard = (text: string) => { navigator.clipboard.writeText(text).catch(() => {}) }
 
-  const handleSignOut = async () => { await signOut(); navigate('/admin/login', { replace: true }) }
+  const handleSignOut = async () => { try { await signOut() } catch { /* */ } navigate('/admin/login', { replace: true }) }
 
   return (
     <div className="ad-page">
@@ -147,7 +149,7 @@ export default function App() {
         </div>
         <div className="ad-header-right">
           <button className={`ad-pause${paused ? ' paused' : ''}`} onClick={() => setPaused(p => !p)}>{paused ? <><Play size={14} /> Resume</> : <><Pause size={14} /> Pause</>}</button>
-          <button className="ad-signout" onClick={handleSignOut}><LogOut size={16} /></button>
+          <button className="ad-signout" onClick={() => setConfirmSignOut(true)}><LogOut size={16} /></button>
         </div>
       </header>
 
@@ -167,7 +169,7 @@ export default function App() {
               ))}
             </div>
 
-            <div className="ad-dept-tabs">{STAGES.map(s => <button key={s} className={`ad-dept-tab${dept === s ? ' active' : ''}`} onClick={() => { setDept(s); setSearch(''); setSel(new Set()); setFStatus('all'); setFPri('all') }}>{DEPT_LABELS[s]} <span className="ad-dept-count">{queue.filter(e => e.department === s && e.status === 'waiting').length}</span></button>)}</div>
+            <div className="ad-dept-tabs">{STAGES.map(s => <button key={s} className={`ad-dept-tab${dept === s ? ' active' : ''}`} onClick={() => { setDept(s); setSearch(''); setSel(new Set()); setFStatus('all'); setFPri('all') }}>{DEPT_LABELS[s]} <span className="ad-dept-count">{waitingCounts[s] || 0}</span></button>)}</div>
 
             <div className="ad-toolbar">
               <div className="ad-search"><Search size={14} /><input placeholder="Search name or #..." value={search} onChange={e => setSearch(e.target.value)} /></div>
@@ -291,6 +293,18 @@ export default function App() {
               <div className="ad-field"><label>Station <span className="ad-field-req">*</span></label><input value={form.station} onChange={e => setForm(f => ({ ...f, station: e.target.value }))} placeholder="e.g. Consult Room 3, Ground Floor, East Wing" /></div>
             </div>
             <div className="ad-modal-footer"><button onClick={() => setInvite(false)}>Cancel</button><button className="ad-btn-primary" onClick={sendInvite} disabled={inviting || !form.name || !form.email || !form.station.trim()}>{inviting ? 'Sending...' : 'Send Invitation'}</button></div>
+          </motion.div>
+        </div>
+      )}
+
+      {confirmSignOut && (
+        <div className="ad-overlay" onClick={() => setConfirmSignOut(false)}>
+          <motion.div className="ad-modal" onClick={e => e.stopPropagation()} initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} transition={{ duration: 0.2 }}>
+            <div className="ad-modal-header"><h2>Sign Out?</h2><button onClick={() => setConfirmSignOut(false)}><X size={18} /></button></div>
+            <div className="ad-modal-body">
+              <p style={{ margin: 0, fontSize: '0.875rem', color: '#5C7A82' }}>You will be signed out of the admin dashboard. Any unsaved queue actions will be lost.</p>
+            </div>
+            <div className="ad-modal-footer"><button onClick={() => setConfirmSignOut(false)}>Cancel</button><button className="ad-btn-red" onClick={() => { setConfirmSignOut(false); handleSignOut() }}><LogOut size={14} /> Sign Out</button></div>
           </motion.div>
         </div>
       )}

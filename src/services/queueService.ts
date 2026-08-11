@@ -75,6 +75,21 @@ export const queueService = {
   // QUEUE OPERATIONS
 
 
+  async getWaitingCounts(): Promise<Record<string, number>> {
+    const { data, error } = await supabase
+      .from('patients')
+      .select('current_stage')
+      .eq('status', 'waiting')
+      .gte('checked_in_at', expiryFloor())
+
+    if (error) throw error
+
+    return (data || []).reduce<Record<string, number>>((acc, r: { current_stage: string }) => {
+      acc[r.current_stage] = (acc[r.current_stage] || 0) + 1
+      return acc
+    }, {})
+  },
+
   async getQueueByDepartment(
     department: Department
   ): Promise<QueueEntry[]> {

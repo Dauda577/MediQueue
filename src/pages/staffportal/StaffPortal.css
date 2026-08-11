@@ -85,5 +85,15 @@
 .sp-queue-meta { font-size: 0.6875rem; color: #6B8A93; }
 .sp-queue-wait { font-size: 0.8125rem; font-weight: 700; color: #5C7A82; min-width: 40px; }
 .sp-queue-arrived { font-size: 0.75rem; color: #6B8A93; min-width: 50px; }
+.sp-overlay { position: fixed; inset: 0; z-index: 200; background: rgba(0,0,0,0.3); display: flex; align-items: center; justify-content: center; padding: 20px; }
+.sp-confirm-modal { background: #fff; border-radius: 20px; width: 100%; max-width: 420px; overflow: hidden; box-shadow: 0 20px 60px rgba(0,0,0,0.15); }
+.sp-confirm-header { display: flex; align-items: center; justify-content: space-between; padding: 18px 24px; border-bottom: 1px solid #D8EFE8; }
+.sp-confirm-header h2 { font-size: 1.125rem; font-weight: 700; color: #1A2E33; margin: 0; }
+.sp-confirm-close { width: 32px; height: 32px; border-radius: 8px; display: flex; align-items: center; justify-content: center; border: none; background: #E8F4F0; color: #5C7A82; cursor: pointer; }
+.sp-confirm-body { padding: 20px 24px; }
+.sp-confirm-body p { margin: 0; font-size: 0.875rem; color: #5C7A82; }
+.sp-confirm-footer { padding: 14px 24px; border-top: 1px solid #D8EFE8; display: flex; justify-content: flex-end; gap: 10px; }
+.sp-confirm-cancel { padding: 10px 18px; border: 2px solid #D8EFE8; border-radius: 10px; font-size: 0.8125rem; font-weight: 600; color: #5C7A82; background: #fff; cursor: pointer; }
+.sp-confirm-ok { display: flex; align-items: center; gap: 4px; padding: 10px 18px; border: none; border-radius: 10px; font-size: 0.8125rem; font-weight: 600; background: #FFE8E6; color: #E8453C; cursor: pointer; }
 @media (max-width: 760px) { .sp-metrics { grid-template-columns: repeat(2, 1fr); } .sp-panels { grid-template-columns: 1fr; } }
 @media (max-width: 480px) { .sp-header { padding: 10px 14px; } .sp-body { padding: 12px 8px 100px; } .sp-title { font-size: 0.9375rem; } .sp-metrics { gap: 8px; } .sp-metric-value { font-size: 1.125rem; } .sp-queue-row { padding: 10px 8px; gap: 8px; flex-wrap: wrap; } .sp-clock { display: none; } .sp-stage-actions { flex-direction: column; } }

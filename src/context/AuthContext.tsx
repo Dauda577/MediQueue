@@ -30,6 +30,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     })();
 
     const authSubscription = onAuthStateChange((staffMember) => {
+      if (!staffMember) {
+        setStaff(null);
+        setLoading(false);
+        return;
+      }
       if (!initialized.current && staffMember) {
         setStaff(staffMember);
         setLoading(false);
