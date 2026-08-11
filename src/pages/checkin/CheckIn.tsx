@@ -1,7 +1,8 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { motion, AnimatePresence } from 'framer-motion'
-import { User, Phone, ChevronRight, Zap, Clock, AlertCircle } from 'lucide-react'
+import { Phone, ChevronRight, Zap, Clock, AlertCircle } from 'lucide-react'
+import AppLogo from '../../components/AppLogo'
 import CountUp from '../../components/reactbits/CountUp'
 import { useRealtimeQueue } from '../../hooks/useRealtimeQueue'
 import { queueService, isTokenExpired } from '../../services/queueService'
@@ -157,7 +158,7 @@ export default function CheckIn() {
 
         <div className="checkin__grid">
           <motion.div className="checkin__card" initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.1, duration: 0.4 }}>
-            <div className="checkin__card-header"><User size={18} /><span>Patient Information</span></div>
+            <div className="checkin__card-header"><AppLogo size={18} /><span>Patient Information</span></div>
             <div className="checkin__field">
               <label className="checkin__label">Full Name <span className="checkin__required">*</span></label>
               <input className={`checkin__input${fieldErrors.name ? ' checkin__input--error' : ''}`} type="text"

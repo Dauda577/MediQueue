@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { motion } from 'framer-motion'
 import { Pause, Play, Search, X, Check, Zap, Download, Users, Phone, LogOut, BarChart3, List, UserCog, Copy } from 'lucide-react'
+import AppLogo from '../../components/AppLogo'
 import CountUp from '../../components/reactbits/CountUp'
 import { useAuth } from '../../context/AuthContext'
 import { supabase } from '../../lib/supabase'
@@ -138,7 +139,7 @@ export default function App() {
   return (
     <div className="ad-page">
       <header className="ad-header">
-        <div className="ad-header-left"><span className="ad-header-logo">⚕️</span><span className="ad-header-title">MediQueue Admin</span></div>
+        <div className="ad-header-left"><span className="ad-header-logo"><AppLogo size={22} /></span><span className="ad-header-title">MediQueue Admin</span></div>
         <div className="ad-tabs">
           {[{ key: 'queue' as Tab, icon: List, label: 'Queue' }, { key: 'reports' as Tab, icon: BarChart3, label: 'Reports' }, { key: 'staff' as Tab, icon: UserCog, label: 'Staff' }].map(t => (
             <button key={t.key} className={`ad-tab${tab === t.key ? ' active' : ''}`} onClick={() => setTab(t.key)}><t.icon size={16} /><span>{t.label}</span></button>

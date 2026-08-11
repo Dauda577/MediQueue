@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { motion } from 'framer-motion'
 import { ArrowRight, CheckCircle2, Clock3, LogOut, Users, AlertTriangle, UserRound, AlertCircle } from 'lucide-react'
+import AppLogo from '../../components/AppLogo'
 import CountUp from '../../components/reactbits/CountUp'
 import { useAuth } from '../../context/AuthContext'
 import { useRealtimeQueue } from '../../hooks/useRealtimeQueue'
@@ -130,7 +131,7 @@ export default function StaffPortal() {
     <div className="sp-page">
       <header className="sp-header">
         <div className="sp-header-left">
-          <span className="sp-logo">⚕️</span>
+          <span className="sp-logo"><AppLogo size={26} /></span>
           <div><h1 className="sp-title">Central Medical</h1><p className="sp-subtitle">{DEPT_LABELS[department]} Department</p></div>
         </div>
         <div className="sp-header-right">

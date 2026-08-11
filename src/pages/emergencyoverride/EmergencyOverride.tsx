@@ -2,7 +2,6 @@ import { useState, useEffect, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { motion, AnimatePresence } from 'framer-motion'
 import {
-  AlertTriangle,
   ArrowLeft,
   Search,
   Zap,
@@ -11,6 +10,7 @@ import {
   UserRound,
   Stethoscope,
 } from 'lucide-react'
+import AppLogo from '../../components/AppLogo'
 import { useAuth } from '../../context/AuthContext'
 import { useRealtimeQueue } from '../../hooks/useRealtimeQueue'
 import { queueService } from '../../services/queueService'
@@ -128,7 +128,7 @@ export default function EmergencyOverride() {
           <ArrowLeft size={18} />
         </button>
         <div className="eo-nav-title">
-          <AlertTriangle size={18} className="eo-nav-icon" />
+          <AppLogo size={18} className="eo-nav-icon" />
           <span>Emergency Override</span>
         </div>
         <div className="eo-nav-spacer" />

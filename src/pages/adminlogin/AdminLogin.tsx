@@ -1,7 +1,8 @@
 import { useState, useEffect } from 'react'
 import { useNavigate, Link } from 'react-router-dom'
 import { motion } from 'framer-motion'
-import { Mail, Lock, ArrowRight, Shield } from 'lucide-react'
+import { Mail, Lock, ArrowRight } from 'lucide-react'
+import AppLogo from '../../components/AppLogo'
 import { signIn, getCurrentStaff } from '../../lib/auth'
 import { useAuth } from '../../context/AuthContext'
 import '../login/Login.css'
@@ -34,7 +35,7 @@ export default function AdminLogin() {
       <div className="login__content">
         <motion.div className="login__card" initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.4 }}>
           <div className="login__header">
-            <span className="login__logo"><Shield size={40} /></span>
+            <span className="login__logo"><AppLogo size={40} /></span>
             <h1 className="login__title">Admin Portal</h1>
             <p className="login__sub">MediQueue Administration</p>
           </div>
