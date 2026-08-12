@@ -41,7 +41,7 @@ export default class ErrorBoundary extends Component<Props, State> {
             textAlign: 'center',
           }}
         >
-          <h1 style={{ fontSize: 28, margin: 0 }}>MediQueue hit an error</h1>
+          <h1 style={{ fontSize: '1.75rem', margin: 0 }}>MediQueue hit an error</h1>
           <p style={{ margin: 0, maxWidth: 480, color: '#0b3a52' }}>{this.state.message}</p>
           <button
             type="button"
@@ -53,7 +53,7 @@ export default class ErrorBoundary extends Component<Props, State> {
               border: 'none',
               background: '#00A896',
               color: '#fff',
-              fontSize: 15,
+              fontSize: '0.9375rem',
               fontWeight: 600,
               cursor: 'pointer',
             }}

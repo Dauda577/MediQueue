@@ -412,7 +412,7 @@
   }
 
   .eo-dept-tab {
-    font-size: 11px;
+    font-size: 0.75rem;
     padding: var(--space-2) var(--space-1);
   }
 }

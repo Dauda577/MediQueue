@@ -121,6 +121,23 @@ export const queueService = {
     return { ...data, wait_time_minutes: data.position * 4 } as QueueEntry
   },
 
+  async getServingPatient(staffId: string, department: Department): Promise<QueueEntry | null> {
+    const { data, error } = await supabase
+      .from('patients')
+      .select('id, token_id, full_name, queue_number, current_stage, status, priority, position, checked_in_at')
+      .eq('assigned_to', staffId)
+      .eq('current_stage', department)
+      .in('status', ['in_consultation', 'in_lab', 'in_pharmacy'])
+      .gte('checked_in_at', expiryFloor())
+      .order('called_at', { ascending: false })
+      .limit(1)
+      .maybeSingle()
+
+    if (error) throw error
+    if (!data) return null
+    return { ...data, wait_time_minutes: 0 } as QueueEntry
+  },
+
   async callNextPatient(
     department: Department
   ): Promise<QueueEntry> {

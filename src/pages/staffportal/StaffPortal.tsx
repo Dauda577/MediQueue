@@ -48,6 +48,16 @@ export default function StaffPortal() {
   }, [department])
 
   useRealtimeQueue({ department, onUpdate: fetchQueue })
+
+  useEffect(() => {
+    if (!staff?.id || !department) return
+    let cancelled = false
+    queueService.getServingPatient(staff.id, department)
+      .then((serving) => { if (!cancelled && serving) { setCurrentServing(serving); setConsultElapsed(0) } })
+      .catch((err) => console.error('[StaffPortal] rehydrate current patient failed:', err))
+    return () => { cancelled = true }
+  }, [staff?.id, department])
+
   useEffect(() => { fetchQueue() }, [fetchQueue])
 
   useEffect(() => { const i = window.setInterval(() => setSessionTime(new Date()), 60000); return () => window.clearInterval(i) }, [])

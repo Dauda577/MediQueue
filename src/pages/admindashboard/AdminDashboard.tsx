@@ -277,7 +277,7 @@ export default function App() {
                   {invMsg.tempPass && (
                     <div style={{ marginTop: 8, display: 'flex', alignItems: 'center', gap: 8 }}>
                       <code style={{ background: 'rgba(0,0,0,0.06)', padding: '4px 8px', borderRadius: 6, fontSize: '0.8125rem', fontWeight: 700 }}>{invMsg.tempPass}</code>
-                      <button onClick={() => { copyToClipboard(invMsg.tempPass!) }} style={{ display: 'flex', alignItems: 'center', gap: 4, padding: '4px 8px', border: '1px solid rgba(0,0,0,0.1)', borderRadius: 6, background: '#fff', cursor: 'pointer', fontSize: '0.6875rem' }}>
+                      <button onClick={() => { copyToClipboard(invMsg.tempPass!) }} style={{ display: 'flex', alignItems: 'center', gap: 4, padding: '4px 8px', border: '1px solid rgba(0,0,0,0.1)', borderRadius: 6, background: '#fff', cursor: 'pointer', fontSize: '0.75rem' }}>
                         <Copy size={12} /> Copy
                       </button>
                     </div>

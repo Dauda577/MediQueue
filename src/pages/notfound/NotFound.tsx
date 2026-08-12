@@ -15,7 +15,7 @@ export default function NotFound() {
       background: 'linear-gradient(135deg, var(--color-background) 0%, #EBF0F5 100%)',
     }}>
       <span style={{
-        fontSize: '80px',
+        fontSize: '5rem',
         lineHeight: 1,
         marginBottom: 'var(--space-4)',
         opacity: 0.6,

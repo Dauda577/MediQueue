@@ -41,25 +41,27 @@ function ProtectedRoute({ children }: { children: React.ReactNode }) {
 export default function App() {
   return (
     <BrowserRouter>
-      <Routes>
-        {/* Public routes */}
-        <Route path="/login" element={<Login />} />
-        <Route path="/admin/login" element={<AdminLogin />} />
-        <Route path="/staff/login" element={<StaffLogin />} />
-        <Route path="/accept-invite" element={<AcceptInvite />} />
-        <Route path="/checkin" element={<CheckIn />} />
-        <Route path="/queue/:tokenId" element={<QueueTracker />} />
+      <main>
+        <Routes>
+          {/* Public routes */}
+          <Route path="/login" element={<Login />} />
+          <Route path="/admin/login" element={<AdminLogin />} />
+          <Route path="/staff/login" element={<StaffLogin />} />
+          <Route path="/accept-invite" element={<AcceptInvite />} />
+          <Route path="/checkin" element={<CheckIn />} />
+          <Route path="/queue/:tokenId" element={<QueueTracker />} />
 
-        <Route path="/" element={<Navigate to="/checkin" replace />} />
+          <Route path="/" element={<Navigate to="/checkin" replace />} />
 
-        {/* Protected routes — strict role isolation */}
-        <Route path="/staff" element={<StaffRoute><StaffPortal /></StaffRoute>} />
-        <Route path="/admin" element={<AdminRoute><AdminDashboard /></AdminRoute>} />
-        <Route path="/emergency" element={<ProtectedRoute><EmergencyOverride /></ProtectedRoute>} />
+          {/* Protected routes — strict role isolation */}
+          <Route path="/staff" element={<StaffRoute><StaffPortal /></StaffRoute>} />
+          <Route path="/admin" element={<AdminRoute><AdminDashboard /></AdminRoute>} />
+          <Route path="/emergency" element={<ProtectedRoute><EmergencyOverride /></ProtectedRoute>} />
 
-        {/* Catch-all 404 */}
-        <Route path="*" element={<NotFound />} />
-      </Routes>
+          {/* Catch-all 404 */}
+          <Route path="*" element={<NotFound />} />
+        </Routes>
+      </main>
     </BrowserRouter>
   );
 }

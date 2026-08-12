@@ -13,9 +13,9 @@
 .qt-avatar { width: 52px; height: 52px; border-radius: 14px; background: linear-gradient(135deg, #05668D, #00A896); color: #fff; display: flex; align-items: center; justify-content: center; font-size: 1.375rem; font-weight: 700; flex-shrink: 0; }
 .qt-name { font-size: 1.125rem; font-weight: 700; color: #1A2E33; margin: 0; }
 .qt-dept { font-size: 0.8125rem; color: #6B8A93; margin: 2px 0 0; }
-.qt-priority-badge { margin-left: auto; font-size: 0.6875rem; font-weight: 700; background: rgba(242,169,0,0.1); color: #C48100; padding: 6px 12px; border-radius: 9999px; }
+.qt-priority-badge { margin-left: auto; font-size: 0.75rem; font-weight: 700; background: rgba(242,169,0,0.1); color: #C48100; padding: 6px 12px; border-radius: 9999px; }
 .qt-token { text-align: center; padding: 14px; background: #f0faf7; border-radius: 12px; border: 2px dashed #C5E8DE; }
-.qt-token-label { display: block; font-size: 0.6875rem; font-weight: 600; color: #00A896; text-transform: uppercase; letter-spacing: 0.1em; margin-bottom: 4px; }
+.qt-token-label { display: block; font-size: 0.75rem; font-weight: 600; color: #00A896; text-transform: uppercase; letter-spacing: 0.1em; margin-bottom: 4px; }
 .qt-token-value { font-size: 1.5rem; font-weight: 800; color: #05668D; font-variant-numeric: tabular-nums; }
 .qt-position-hero { display: flex; flex-direction: column; align-items: center; gap: 12px; margin-bottom: 22px; }
 .qt-position-circle { position: relative; width: 140px; height: 140px; }
@@ -29,7 +29,7 @@
 .qt-info-item { display: flex; align-items: flex-start; gap: 8px; padding: 12px; background: #F2F9F6; border-radius: 10px; }
 .qt-info-item svg { color: #00A896; flex-shrink: 0; margin-top: 2px; }
 .qt-info-item div { display: flex; flex-direction: column; gap: 2px; }
-.qt-info-item span { font-size: 0.625rem; font-weight: 600; color: #6B8A93; text-transform: uppercase; letter-spacing: 0.04em; }
+.qt-info-item span { font-size: 0.75rem; font-weight: 600; color: #6B8A93; text-transform: uppercase; letter-spacing: 0.04em; }
 .qt-info-item strong { font-size: 0.8125rem; color: #1A2E33; }
 .qt-stages { background: #fff; border-radius: 18px; padding: 20px 16px; box-shadow: 0 1px 3px rgba(0,0,0,0.04), 0 2px 12px rgba(0,0,0,0.04); display: flex; align-items: flex-start; justify-content: space-between; }
 .qt-stage { display: flex; flex-direction: column; align-items: center; gap: 8px; flex: 1; position: relative; }
@@ -86,7 +86,7 @@
 .qt-stage-line--done { background: #05668D; }
 
 .qt-stage-label {
-  font-size: 0.5625rem; font-weight: 600; color: #7D9BA5;
+  font-size: 0.75rem; font-weight: 600; color: #7D9BA5;
   text-align: center; text-transform: uppercase; letter-spacing: 0.04em;
   transition: color 0.3s ease;
 }
@@ -98,7 +98,7 @@
 .qt-done h2 { font-size: 1.5rem; font-weight: 700; color: #02C39A; margin: 0; }
 .qt-done p { font-size: 0.9375rem; color: #5C7A82; margin: 0; }
 .qt-done button { margin-top: 8px; padding: 14px 32px; background: linear-gradient(135deg, #05668D, #00A896); color: #fff; border: none; border-radius: 14px; font-size: 1rem; font-weight: 600; cursor: pointer; box-shadow: 0 2px 8px rgba(5,102,141,0.25); }
-@media (max-width: 480px) { .qt-content { padding: env(safe-area-inset-top, 12px) 12px 100px; gap: 12px; } .qt-card { padding: 18px 14px; border-radius: 14px; } .qt-position-circle { width: 110px; height: 110px; } .qt-position-number { font-size: 2rem; } .qt-info-grid { grid-template-columns: 1fr; gap: 8px; } .qt-stages { padding: 16px 4px; border-radius: 14px; } .qt-stage-label { font-size: 0.5rem; max-width: 44px; overflow: hidden; text-overflow: ellipsis; }   .qt-stage-icon-wrap { width: 34px; height: 34px; }
+@media (max-width: 480px) { .qt-content { padding: env(safe-area-inset-top, 12px) 12px 100px; gap: 12px; } .qt-card { padding: 18px 14px; border-radius: 14px; } .qt-position-circle { width: 110px; height: 110px; } .qt-position-number { font-size: 2rem; } .qt-info-grid { grid-template-columns: 1fr; gap: 8px; } .qt-stages { padding: 16px 4px; border-radius: 14px; } .qt-stage-label { font-size: 0.75rem; max-width: 44px; overflow: hidden; text-overflow: ellipsis; }   .qt-stage-icon-wrap { width: 34px; height: 34px; }
   .qt-stage-line { top: 17px; left: calc(50% + 17px); width: calc(100% - 34px); }
   .qt-stage-icon-glow { inset: -5px; } .qt-token-value { font-size: 1.25rem; } }
 @media (prefers-reduced-motion: reduce) {
