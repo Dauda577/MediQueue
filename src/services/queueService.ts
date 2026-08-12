@@ -217,7 +217,7 @@ export const queueService = {
   async assignPatientToStaff(patientId: string, staffId: string): Promise<void> {
     const { error } = await supabase
       .from('patients')
-      .update({ assigned_to: staffId } as never)
+      .update({ assigned_to: staffId })
       .eq('id', patientId)
 
     if (error) throw error

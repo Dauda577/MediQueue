@@ -97,6 +97,7 @@ export type Database = {
       patients: {
         Row: {
           assigned_station: string | null
+          assigned_to: string | null
           called_at: string | null
           checked_in_at: string
           created_at: string
@@ -115,6 +116,7 @@ export type Database = {
         }
         Insert: {
           assigned_station?: string | null
+          assigned_to?: string | null
           called_at?: string | null
           checked_in_at?: string
           created_at?: string
@@ -133,6 +135,7 @@ export type Database = {
         }
         Update: {
           assigned_station?: string | null
+          assigned_to?: string | null
           called_at?: string | null
           checked_in_at?: string
           created_at?: string
@@ -149,7 +152,15 @@ export type Database = {
           token_id?: string
           user_id?: string | null
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "patients_assigned_to_fkey"
+            columns: ["assigned_to"]
+            isOneToOne: false
+            referencedRelation: "staff_members"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       staff_members: {
         Row: {
