@@ -77,8 +77,7 @@ export default function StaffPortal() {
   const handleCallNext = async () => {
     if (queue.length === 0) return
     try {
-      const np = await queueService.callNextPatient(department)
-      if (staff?.id) await queueService.assignPatientToStaff(np.id, staff.id, staff.station)
+      const np = await queueService.claimNextPatient(department, staff?.id, staff?.station)
 
       const { data: patient } = await supabase.from('patients').select('phone').eq('id', np.id).single()
       if (patient?.phone) {
@@ -93,10 +92,17 @@ export default function StaffPortal() {
   }
 
   const handleSelectPatient = async (entry: QueueEntry) => {
-    if (staff?.id) await queueService.assignPatientToStaff(entry.id, staff.id, staff.station).catch(() => {})
-    setQueue(p => { const n = [...p]; if (currentServing) n.push(currentServing); return n.filter(i => i.id !== entry.id) })
-    setCurrentServing(entry); setConsultElapsed(0)
-    showAnnouncement(`Selected ${entry.full_name} • #${entry.queue_number}`)
+    try {
+      const claimed = await queueService.claimPatient(entry.id, staff?.id, staff?.station)
+      if (!claimed) {
+        showError(`${entry.full_name} was already claimed by another staff member.`)
+        fetchQueue()
+        return
+      }
+      setQueue(p => { const n = [...p]; if (currentServing) n.push(currentServing); return n.filter(i => i.id !== claimed.id) })
+      setCurrentServing(claimed); setConsultElapsed(0)
+      showAnnouncement(`Selected ${claimed.full_name} • #${claimed.queue_number}`)
+    } catch (err) { console.error('[StaffPortal] select patient failed:', err); showError('Could not select the patient. Please try again.') }
   }
 
   const handleRequeue = async () => {

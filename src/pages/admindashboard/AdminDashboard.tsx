@@ -102,10 +102,9 @@ export default function App() {
     const n = [...dq].filter(e => e.status === 'waiting').sort((a, b) => priOrder[a.priority] - priOrder[b.priority] || a.position - b.position)[0]
     if (!n) return
     try {
-      await queueService.callPatientToConsult(n.id, n.queue_number, dept)
       const target = await queueService.getLeastLoadedStaff(dept)
-      if (target?.id) await queueService.assignPatientToStaff(n.id, target.id)
-      setServing(n); beep(); fetchQueue()
+      const claimed = await queueService.claimNextPatient(dept, target?.id, target?.station)
+      setServing({ ...claimed, department: claimed.current_stage, arrived_at: claimed.checked_in_at }); beep(); fetchQueue()
     } catch { /* */ }
   }, [dq, dept, fetchQueue])
 
@@ -257,7 +256,7 @@ export default function App() {
             <div className="ad-modal-body">
               <div className="ad-detail-grid">{[['Name', modal.full_name], ['Queue #', `#${modal.queue_number}`], ['Position', String(modal.position)], ['Department', DEPT_LABELS[modal.department]], ['Status', sLabel(modal.status)], ['Priority', modal.priority], ['Wait', `${Math.round(modal.wait_time_minutes)} min`], ['Arrived', modal.arrived_at]].map(([l, v]) => <div key={l}><span>{l}</span><strong>{v}</strong></div>)}</div>
               <div className="ad-modal-actions">
-                <button className="ad-btn-green" onClick={async () => { try { await queueService.callPatientToConsult(modal.id, modal.queue_number, dept); const target = await queueService.getLeastLoadedStaff(dept); if (target?.id) await queueService.assignPatientToStaff(modal.id, target.id); setServing(modal); beep() } catch { /* */ } setModal(null); fetchQueue() }}><Phone size={14} /> Call to Consult</button>
+                <button className="ad-btn-green" onClick={async () => { try { const target = await queueService.getLeastLoadedStaff(dept); const claimed = await queueService.claimPatient(modal.id, target?.id, target?.station); if (claimed) { setServing({ ...claimed, department: claimed.current_stage, arrived_at: claimed.checked_in_at }); beep() } } catch { /* */ } setModal(null); fetchQueue() }}><Phone size={14} /> Call to Consult</button>
                 <button className="ad-btn-amber" onClick={async () => { await toggleEmg(modal.id, modal.priority); setModal(null) }}><Zap size={14} /> {modal.priority === 'emergency' ? 'Remove Emergency' : 'Set Emergency'}</button>
                 {modal.status !== 'done' && <button className="ad-btn-red" onClick={async () => { try { await queueService.markAsServed(modal.id); setServed(c => c + 1) } catch { /* */ } setModal(null); fetchQueue() }}><Check size={14} /> Mark Served</button>}
               </div>

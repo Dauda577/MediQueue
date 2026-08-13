@@ -15,14 +15,24 @@ export const expiryFloor = () => new Date(Date.now() - TOKEN_EXPIRY_MS).toISOStr
 export const isTokenExpired = (checkedInAt: string | null | undefined) =>
   !checkedInAt || Date.parse(checkedInAt) + TOKEN_EXPIRY_MS < Date.now()
 
+export const elapsedWaitMinutes = (checkedInAt: string | null | undefined) => {
+  if (!checkedInAt) return 0
+  const elapsed = Date.now() - Date.parse(checkedInAt)
+  return Math.max(0, Math.round(elapsed / 60000))
+}
+
+const toQueueEntry = (p: Record<string, unknown>): QueueEntry =>
+  ({ ...p, wait_time_minutes: elapsedWaitMinutes(p.checked_in_at as string | null) }) as unknown as QueueEntry
+
 export const queueService = {
 
   // DEPARTMENT / STAGE METHODS
 
-  async getDepartments() {
+  async getDepartments(): Promise<string[]> {
     const { data, error } = await supabase
       .from('patients')
       .select('current_stage')
+      .gte('checked_in_at', expiryFloor())
     if (error) throw error
     const unique = [...new Set(data.map((r: { current_stage: string }) => r.current_stage))]
     return unique
@@ -104,10 +114,7 @@ export const queueService = {
 
     if (error) throw error
 
-    return data.map((p) => ({
-      ...p,
-      wait_time_minutes: p.position * 4,
-    })) as unknown as QueueEntry[]
+    return (data || []).map(toQueueEntry)
   },
 
   async getPatientQueue(patientId: string): Promise<QueueEntry | null> {
@@ -118,7 +125,7 @@ export const queueService = {
       .single()
 
     if (error) return null
-    return { ...data, wait_time_minutes: data.position * 4 } as QueueEntry
+    return toQueueEntry(data)
   },
 
   async getServingPatient(staffId: string, department: Department): Promise<QueueEntry | null> {
@@ -135,35 +142,47 @@ export const queueService = {
 
     if (error) throw error
     if (!data) return null
-    return { ...data, wait_time_minutes: 0 } as QueueEntry
+    return toQueueEntry(data)
   },
 
-  async callNextPatient(
-    department: Department
+  // Atomic claim — picks the next waiting patient, marks them in-consultation,
+  // assigns them to the claiming staff, and records the call alert in one RPC.
+  async claimNextPatient(
+    department: Department,
+    staffId?: string | null,
+    station?: string | null
   ): Promise<QueueEntry> {
-    const { data, error } = await supabase
-      .from('patients')
-      .select('id, token_id, full_name, queue_number, current_stage, status, priority, position, checked_in_at, assigned_to')
-      .eq('current_stage', department)
-      .eq('status', 'waiting')
-      .gte('checked_in_at', expiryFloor())
-      .order('priority', { ascending: false })
-      .order('position', { ascending: true })
-      .limit(1)
-      .single()
+    const { data, error } = await supabase.rpc('claim_next_patient', {
+      p_department: department,
+      p_staff_id: staffId || undefined,
+      p_station: station || undefined,
+    })
 
-    if (error) throw new Error('No patients in queue')
+    if (error) throw error
+    if (!data || !Array.isArray(data) || data.length === 0) {
+      throw new Error('No patients in queue')
+    }
+    return toQueueEntry(data[0] as Record<string, unknown>)
+  },
 
-    const { error: updateError } = await supabase
-      .from('patients')
-      .update({ status: 'in_consultation', called_at: new Date().toISOString() })
-      .eq('id', data.id)
+  // Atomic claim of a specific patient. Returns null when the patient is no
+  // longer waiting (e.g. already claimed by another staff member).
+  async claimPatient(
+    patientId: string,
+    staffId?: string | null,
+    station?: string | null
+  ): Promise<QueueEntry | null> {
+    const { data, error } = await supabase.rpc('claim_patient', {
+      p_patient_id: patientId,
+      p_staff_id: staffId || undefined,
+      p_station: station || undefined,
+    })
 
-    if (updateError) throw updateError
-
-    await queueService.recordCallAlert(data.id, data.queue_number, department)
-
-    return { ...data, status: 'in_consultation', wait_time_minutes: 0 } as QueueEntry
+    if (error) throw error
+    if (!data || !Array.isArray(data) || data.length === 0) {
+      return null
+    }
+    return toQueueEntry(data[0] as Record<string, unknown>)
   },
 
   async markAsServed(queueId: string): Promise<QueueEntry> {
@@ -175,7 +194,7 @@ export const queueService = {
       .single()
 
     if (error) throw error
-    return { ...data, wait_time_minutes: 0 } as QueueEntry
+    return toQueueEntry(data)
   },
 
   async markAsEmergency(queueId: string, priority: 'normal' | 'priority' | 'emergency'): Promise<QueueEntry> {
@@ -187,7 +206,7 @@ export const queueService = {
       .single()
 
     if (error) throw error
-    return { ...data, wait_time_minutes: 0 } as QueueEntry
+    return toQueueEntry(data)
   },
 
 
@@ -233,19 +252,6 @@ export const queueService = {
     return [...active].sort((a, b) => (loads.get(a.id) || 0) - (loads.get(b.id) || 0))[0]
   },
 
-  async assignPatientToStaff(patientId: string, staffId: string, station?: string | null): Promise<void> {
-    const stationUpdate: { assigned_to: string; assigned_station?: string } = {
-      assigned_to: staffId,
-      ...(station ? { assigned_station: station } : {}),
-    }
-    const { error } = await supabase
-      .from('patients')
-      .update(stationUpdate)
-      .eq('id', patientId)
-
-    if (error) throw error
-  },
-
   async movePatientToStage(
     patientId: string,
     stage: string,
@@ -259,7 +265,7 @@ export const queueService = {
       .single()
 
     if (error) throw error
-    return { ...data, wait_time_minutes: 0 } as QueueEntry
+    return toQueueEntry(data)
   },
 
   async requeuePatient(patientId: string): Promise<QueueEntry> {
@@ -271,28 +277,12 @@ export const queueService = {
       .single()
 
     if (error) throw error
-    return { ...data, wait_time_minutes: data.position * 4 } as QueueEntry
+    return toQueueEntry(data)
   },
 
 
   // CALL ALERTS
 
-
-  async recordCallAlert(patientId: string, queueNumber: number, department: string): Promise<CallAlert> {
-    const { data, error } = await supabase
-      .from('call_alerts')
-      .insert({
-        patient_id: patientId,
-        queue_number: queueNumber,
-        department: department as 'OPD' | 'Lab' | 'Pharmacy' | 'Maternity',
-        acknowledged: false,
-      })
-      .select()
-      .single()
-
-    if (error) throw error
-    return data
-  },
 
   async acknowledgeCallAlert(alertId: string): Promise<CallAlert> {
     const { data, error } = await supabase
@@ -357,7 +347,7 @@ export const queueService = {
       .single()
 
     if (error) throw error
-    return { ...data, wait_time_minutes: 0 } as QueueEntry
+    return toQueueEntry(data)
   },
 
   async updatePatientPriority(queueId: string, priority: 'normal' | 'priority' | 'emergency'): Promise<QueueEntry> {
@@ -369,13 +359,7 @@ export const queueService = {
       .single()
 
     if (error) throw error
-    return { ...data, wait_time_minutes: 0 } as QueueEntry
-  },
-
-  async callPatientToConsult(queueId: string, queueNumber: number, department: Department): Promise<QueueEntry> {
-    const result = await queueService.updatePatientStatus(queueId, 'in_consultation')
-    await queueService.recordCallAlert(queueId, queueNumber, department)
-    return result
+    return toQueueEntry(data)
   },
 
   // DASHBOARD STATS
@@ -386,7 +370,7 @@ export const queueService = {
 
     const [{ count: totalToday }, { data: waiting }, { data: activeStaff }] = await Promise.all([
       supabase.from('patients').select('*', { count: 'exact', head: true }).gte('checked_in_at', today),
-      supabase.from('patients').select('current_stage').eq('status', 'waiting').gte('checked_in_at', today),
+      supabase.from('patients').select('current_stage, checked_in_at').eq('status', 'waiting').gte('checked_in_at', today),
       supabase.from('staff_members').select('role, is_active'),
     ])
 
@@ -394,10 +378,13 @@ export const queueService = {
     const doctors = activeStaff?.filter((s: { role: string }) => s.role === 'doctor') ?? []
     const nurses = activeStaff?.filter((s: { role: string }) => s.role === 'nurse') ?? []
 
+    const waits = (waiting ?? []).map((p: { checked_in_at: string }) => elapsedWaitMinutes(p.checked_in_at))
+    const avgWait = waits.length > 0 ? Math.round(waits.reduce((s, w) => s + w, 0) / waits.length) : 0
+
     return {
       total_patients_today: totalToday ?? 0,
       active_queues: activeQueues,
-      avg_wait_minutes: 0,
+      avg_wait_minutes: avgWait,
       physicians_active: doctors.filter((d: { is_active: boolean }) => d.is_active).length,
       physicians_total: doctors.length,
       nursing_active: nurses.filter((n: { is_active: boolean }) => n.is_active).length,

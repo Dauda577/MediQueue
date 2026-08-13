@@ -204,13 +204,21 @@ export type Database = {
         Args: { p_full_name: string; p_department: Database["public"]["Enums"]["stage"]; p_phone?: string; p_priority?: Database["public"]["Enums"]["patient_priority"] }
         Returns: Database["public"]["Tables"]["patients"]["Row"]
       }
+      claim_next_patient: {
+        Args: { p_department: Database["public"]["Enums"]["stage"]; p_staff_id?: string; p_station?: string }
+        Returns: Database["public"]["Tables"]["patients"]["Row"]
+      }
+      claim_patient: {
+        Args: { p_patient_id: string; p_staff_id?: string; p_station?: string }
+        Returns: Database["public"]["Tables"]["patients"]["Row"]
+      }
       get_hourly_checkins: {
         Args: { date: string }
         Returns: { hour: string; count: number }
       }
       get_staff_role: {
         Args: never
-        Returns: Database["public"]["Enums"]["staff_role"]
+        Returns: string
       }
     }
     Enums: {
