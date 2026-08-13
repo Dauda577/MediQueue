@@ -97,7 +97,7 @@ export const queueService = {
       .from('patients')
       .select('id, token_id, full_name, queue_number, current_stage, status, priority, position, checked_in_at, assigned_to')
       .eq('current_stage', department)
-      .eq('status', 'waiting')
+      .in('status', ['waiting', 'in_consultation', 'in_lab', 'in_pharmacy'])
       .gte('checked_in_at', expiryFloor())
       .order('priority', { ascending: true })
       .order('position', { ascending: true })

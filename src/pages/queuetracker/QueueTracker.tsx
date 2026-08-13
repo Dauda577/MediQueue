@@ -3,6 +3,7 @@ import { useEffect, useState, useRef, useCallback } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { ArrowLeft, Clock, MapPin, User, Bell, ClipboardCheck, Hourglass, Stethoscope, FlaskConical, Pill, CircleCheck } from 'lucide-react'
 import CountUp from '../../components/reactbits/CountUp'
+import AppLogo from '../../components/AppLogo'
 import { useRealtimeAlerts } from '../../hooks/useRealtimeAlerts'
 import { announcePatient } from '../../lib/announce'
 import { supabase } from '../../lib/supabase'
@@ -172,7 +173,7 @@ const { tokenId: paramToken } = useParams()
       <div className="qt-content">
         <nav className="qt-nav">
           <button className="qt-nav-back" onClick={() => navigate('/checkin')}><ArrowLeft size={20} /></button>
-          <div className="qt-nav-brand"><span>⚕</span><span>MediQueue</span></div>
+          <div className="qt-nav-brand"><AppLogo size={22} /><span>MediQueue</span></div>
           <div style={{ width: 40 }} />
         </nav>
 

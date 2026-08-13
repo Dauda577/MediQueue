@@ -86,10 +86,12 @@ export default function App() {
   const wDept = dq.filter(e => e.status === 'waiting')
   const avgWait = wDept.length ? Math.round(wDept.reduce((s, e) => s + e.wait_time_minutes, 0) / wDept.length) : 0
 
+  const sPhase = (s: QStatus) => (s === 'waiting' ? 0 : 1)
+
   const filtered = dq.filter(e => {
     const ms = search === '' || e.full_name.toLowerCase().includes(search.toLowerCase()) || String(e.queue_number).includes(search)
     return ms && (fStatus === 'all' || e.status === fStatus) && (fPri === 'all' || e.priority === fPri)
-  }).sort((a, b) => priOrder[a.priority] - priOrder[b.priority] || a.position - b.position)
+  }).sort((a, b) => sPhase(a.status) - sPhase(b.status) || priOrder[a.priority] - priOrder[b.priority] || a.position - b.position)
 
   const filteredStaff = staff.filter(s => {
     const ms = sSearch === '' || s.name.toLowerCase().includes(sSearch.toLowerCase())
@@ -171,7 +173,7 @@ export default function App() {
 
             <div className="ad-toolbar">
               <div className="ad-search"><Search size={14} /><input placeholder="Search name or #..." value={search} onChange={e => setSearch(e.target.value)} /></div>
-              <select value={fStatus} onChange={e => setFStatus(e.target.value)}><option value="all">All statuses</option><option value="waiting">Waiting</option><option value="in_consultation">Consulting</option><option value="done">Done</option></select>
+              <select value={fStatus} onChange={e => setFStatus(e.target.value)}><option value="all">All statuses</option><option value="waiting">Waiting</option><option value="in_consultation">Consulting</option><option value="in_lab">In Lab</option><option value="in_pharmacy">In Pharmacy</option></select>
               <select value={fPri} onChange={e => setFPri(e.target.value)}><option value="all">All priorities</option><option value="emergency">Emergency</option><option value="priority">Priority</option><option value="normal">Normal</option></select>
               <button onClick={() => exportCSV(dq, dept)}><Download size={14} /> Export</button>
             </div>
