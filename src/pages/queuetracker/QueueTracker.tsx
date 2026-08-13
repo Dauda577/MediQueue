@@ -7,6 +7,8 @@ import AppLogo from '../../components/AppLogo'
 import { useRealtimeAlerts } from '../../hooks/useRealtimeAlerts'
 import { announcePatient } from '../../lib/announce'
 import { supabase } from '../../lib/supabase'
+import { parseStation } from '../../lib/stations'
+import { PRIORITY_ORDER } from '../../lib/priority'
 import { isTokenExpired, expiryFloor, TOKEN_EXPIRY_MS } from '../../services/queueService'
 import './QueueTracker.css'
 
@@ -18,13 +20,6 @@ const STAGES = [
   { key: 'in_pharmacy',     label: 'Pharmacy',   icon: Pill },
   { key: 'done',            label: 'Done',       icon: CircleCheck },
 ]
-
-const STATION_MAP: Record<string, { room: string; wing: string }> = {
-  OPD: { room: 'Room 3', wing: 'Ground Floor, West Wing' },
-  Lab: { room: 'Lab-1', wing: 'Ground Floor, East Wing' },
-  Pharmacy: { room: 'Counter 2', wing: 'Ground Floor, Main Hall' },
-  Maternity: { room: 'Ward 1', wing: 'First Floor, East Wing' },
-}
 
 function deriveStage(status: string): string {
   if (status === 'waiting') return 'waiting'
@@ -91,13 +86,20 @@ const { tokenId: paramToken } = useParams()
       return
     }
 
-    const queueRes = await supabase.from('patients').select('id', { count: 'exact', head: true })
+    const queueRes = await supabase.from('patients').select('priority, position')
       .eq('current_stage', dept).eq('status', 'waiting').gte('checked_in_at', expiryFloor())
+    const waiting = queueRes.data ?? []
+    const ahead = waiting.filter((o: { priority: string; position: number }) =>
+      PRIORITY_ORDER[o.priority] < PRIORITY_ORDER[p.priority] ||
+      (PRIORITY_ORDER[o.priority] === PRIORITY_ORDER[p.priority] && o.position < p.position)
+    ).length
+    const total = waiting.length
+    const position = p.status === 'waiting' ? ahead + 1 : Math.min(ahead + 1, total)
+    const { room, wing } = parseStation(p.assigned_station)
     setQueueData({
       tokenId: p.token_id, fullName: p.full_name, department: p.initial_department,
-      isPriority: p.priority !== 'normal', position: p.position, total: queueRes.count ?? 0,
-      stage: deriveStage(p.status), stationRoom: STATION_MAP[dept]?.room ?? 'Reception',
-      stationWing: STATION_MAP[dept]?.wing ?? 'Main Building', status: p.status,
+      isPriority: p.priority !== 'normal', position, total,
+      stage: deriveStage(p.status), stationRoom: room, stationWing: wing, status: p.status,
     })
     setExpired(false)
     setLoading(false)

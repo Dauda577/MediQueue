@@ -8,6 +8,7 @@ import { useRealtimeQueue } from '../../hooks/useRealtimeQueue'
 import { queueService, isTokenExpired } from '../../services/queueService'
 import { supabase } from '../../lib/supabase'
 import { sendSms } from '../../lib/sms'
+import { DEFAULT_STATIONS } from '../../lib/stations'
 import './CheckIn.css'
 
 type DepartmentId = 'OPD' | 'Lab' | 'Pharmacy' | 'Maternity'
@@ -129,10 +130,7 @@ export default function CheckIn() {
       })
       localStorage.setItem('activeToken', patient.token_id)
 
-      const station = department === 'OPD' ? 'Room 3, West Wing'
-        : department === 'Lab' ? 'Lab-1, East Wing'
-        : department === 'Pharmacy' ? 'Counter 2, Main Hall'
-        : 'Ward 1, East Wing'
+      const station = DEFAULT_STATIONS[department!]
       const waitMins = (deptStats[department!]?.avgWaitMins ?? 0) + (DEPARTMENTS.find(d => d.id === department)?.avgMinsPerPatient ?? 4)
       sendSms(cleanedPhone, `MediQueue: Your token is ${patient.token_id}. Est. wait ~${waitMins} min. ${station}. Valid for 24 hours.`)
 

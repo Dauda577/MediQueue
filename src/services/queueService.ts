@@ -99,7 +99,7 @@ export const queueService = {
       .eq('current_stage', department)
       .in('status', ['waiting', 'in_consultation', 'in_lab', 'in_pharmacy'])
       .gte('checked_in_at', expiryFloor())
-      .order('priority', { ascending: true })
+      .order('priority', { ascending: false })
       .order('position', { ascending: true })
 
     if (error) throw error
@@ -147,7 +147,7 @@ export const queueService = {
       .eq('current_stage', department)
       .eq('status', 'waiting')
       .gte('checked_in_at', expiryFloor())
-      .order('priority', { ascending: true })
+      .order('priority', { ascending: false })
       .order('position', { ascending: true })
       .limit(1)
       .single()
@@ -233,10 +233,14 @@ export const queueService = {
     return [...active].sort((a, b) => (loads.get(a.id) || 0) - (loads.get(b.id) || 0))[0]
   },
 
-  async assignPatientToStaff(patientId: string, staffId: string): Promise<void> {
+  async assignPatientToStaff(patientId: string, staffId: string, station?: string | null): Promise<void> {
+    const stationUpdate: { assigned_to: string; assigned_station?: string } = {
+      assigned_to: staffId,
+      ...(station ? { assigned_station: station } : {}),
+    }
     const { error } = await supabase
       .from('patients')
-      .update({ assigned_to: staffId })
+      .update(stationUpdate)
       .eq('id', patientId)
 
     if (error) throw error

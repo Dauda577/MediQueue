@@ -14,6 +14,7 @@ import AppLogo from '../../components/AppLogo'
 import { useAuth } from '../../context/AuthContext'
 import { useRealtimeQueue } from '../../hooks/useRealtimeQueue'
 import { queueService } from '../../services/queueService'
+import { PRIORITY_ORDER } from '../../lib/priority'
 import type { QueueEntry } from '../../types'
 import './EmergencyOverride.css'
 
@@ -26,12 +27,6 @@ const DEPT_LABELS: Record<Department, string> = {
   Lab: 'Laboratory',
   Pharmacy: 'Pharmacy',
   Maternity: 'Maternity',
-}
-
-const PRIORITY_ORDER: Record<string, number> = {
-  emergency: 0,
-  priority: 1,
-  normal: 2,
 }
 
 function getInitials(name: string) {

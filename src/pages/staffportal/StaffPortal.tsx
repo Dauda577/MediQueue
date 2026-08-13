@@ -10,6 +10,7 @@ import { announcePatient } from '../../lib/announce'
 import { signOut } from '../../lib/auth'
 import { sendSms } from '../../lib/sms'
 import { supabase } from '../../lib/supabase'
+import { DEFAULT_STATIONS } from '../../lib/stations'
 import { queueService } from '../../services/queueService'
 import type { QueueEntry } from '../../types'
 import './StaffPortal.css'
@@ -77,11 +78,11 @@ export default function StaffPortal() {
     if (queue.length === 0) return
     try {
       const np = await queueService.callNextPatient(department)
-      if (staff?.id) await queueService.assignPatientToStaff(np.id, staff.id)
+      if (staff?.id) await queueService.assignPatientToStaff(np.id, staff.id, staff.station)
 
       const { data: patient } = await supabase.from('patients').select('phone').eq('id', np.id).single()
       if (patient?.phone) {
-        const station = department === 'OPD' ? 'Room 3, West Wing' : department === 'Lab' ? 'Lab-1, East Wing' : department === 'Pharmacy' ? 'Counter 2, Main Hall' : 'Ward 1, East Wing'
+        const station = staff?.station ?? DEFAULT_STATIONS[department]
         const { ok } = await sendSms(patient.phone, `MediQueue: Your turn now! Please proceed to ${station}.`)
         if (!ok) console.warn('[StaffPortal] SMS not delivered for', patient.phone)
       }
@@ -92,7 +93,7 @@ export default function StaffPortal() {
   }
 
   const handleSelectPatient = async (entry: QueueEntry) => {
-    if (staff?.id) await queueService.assignPatientToStaff(entry.id, staff.id).catch(() => {})
+    if (staff?.id) await queueService.assignPatientToStaff(entry.id, staff.id, staff.station).catch(() => {})
     setQueue(p => { const n = [...p]; if (currentServing) n.push(currentServing); return n.filter(i => i.id !== entry.id) })
     setCurrentServing(entry); setConsultElapsed(0)
     showAnnouncement(`Selected ${entry.full_name} • #${entry.queue_number}`)
