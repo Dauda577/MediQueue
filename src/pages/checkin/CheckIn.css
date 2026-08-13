@@ -1,4 +1,4 @@
-.checkin { min-height: 100vh; min-height: 100dvh; background: linear-gradient(180deg, #e8f5f1 0%, #f0faf7 40%); overflow-x: hidden; }
+.checkin { min-height: 100vh; min-height: 100dvh; background: linear-gradient(180deg, rgba(232,245,241,0.45) 0%, rgba(240,250,247,0.6) 40%), url(../../assets/auth-backdrop.webp) center/cover no-repeat; overflow-x: hidden; }
 .checkin__content { max-width: 580px; margin: 0 auto; padding: env(safe-area-inset-top, 24px) 16px 40px; display: flex; flex-direction: column; gap: 20px; }
 .checkin__hero { text-align: center; padding-top: 24px; }
 .checkin__title { font-size: clamp(1.5rem, 5vw, 2rem); font-weight: 700; color: #1A2E33; letter-spacing: -0.02em; line-height: 1.2; margin: 0; }

@@ -34,6 +34,7 @@ export interface QueueEntry {
   position: number;
   wait_time_minutes: number;
   checked_in_at: string;
+  assigned_to: string | null;
 }
 
 // Computed shape for admin dashboard — derived via query or Postgres function

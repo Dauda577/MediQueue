@@ -147,7 +147,7 @@ export default function StaffPortal() {
         </div>
         <div className="sp-header-right">
           <div className="sp-clock"><span className="sp-clock-time">{formatClock(sessionTime)}</span><span className="sp-clock-date">{formatDate(sessionTime)}</span></div>
-          <button className="sp-signout-btn" onClick={() => setConfirmSignOut(true)}><LogOut size={16} /></button>
+          <button className="sp-signout-btn" onClick={() => setConfirmSignOut(true)}><LogOut size={16} /> Logout</button>
         </div>
       </header>
 

@@ -34,7 +34,7 @@ export default class ErrorBoundary extends Component<Props, State> {
             justifyContent: 'center',
             flexDirection: 'column',
             gap: 12,
-            fontFamily: 'Inter, system-ui, sans-serif',
+            fontFamily: 'Geist Sans, system-ui, sans-serif',
             color: '#05668D',
             background: '#f0faf7',
             padding: 24,

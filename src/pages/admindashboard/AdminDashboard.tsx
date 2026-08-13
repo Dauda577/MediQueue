@@ -1,10 +1,9 @@
 import { useState, useEffect, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { motion } from 'framer-motion'
-import { Pause, Play, Search, X, Check, Zap, Download, Users, Phone, LogOut, BarChart3, List, UserCog, Copy } from 'lucide-react'
+import { Search, X, Check, Zap, Download, Users, Phone, LogOut, BarChart3, List, UserCog, Copy } from 'lucide-react'
 import AppLogo from '../../components/AppLogo'
 import CountUp from '../../components/reactbits/CountUp'
-import { useAuth } from '../../context/AuthContext'
 import { supabase } from '../../lib/supabase'
 import { signOut, inviteStaffMember } from '../../lib/auth'
 import { queueService } from '../../services/queueService'
@@ -39,16 +38,15 @@ function beep() {
 
 export default function App() {
   const navigate = useNavigate()
-  const { staff: currentStaff } = useAuth()
   const [tab, setTab] = useState<Tab>('queue'); const [dept, setDept] = useState<Stage>('OPD')
   const [queue, setQueue] = useState<Entry[]>([]); const [serving, setServing] = useState<Entry | null>(null)
   const [waitingCounts, setWaitingCounts] = useState<Record<string, number>>({}); const [confirmSignOut, setConfirmSignOut] = useState(false)
-  const [paused, setPaused] = useState(false); const [search, setSearch] = useState('')
+  const [search, setSearch] = useState('')
   const [fStatus, setFStatus] = useState('all'); const [fPri, setFPri] = useState('all')
   const [sel, setSel] = useState<Set<string>>(new Set()); const [modal, setModal] = useState<Entry | null>(null)
   const [served, setServed] = useState(0); const [staff, setStaff] = useState<Staff[]>([])
   const [invite, setInvite] = useState(false)
-  const [form, setForm] = useState({ name: '', email: '', role: 'nurse' as StaffRole, department: 'OPD' as Stage, station: '' })
+  const [form, setForm] = useState({ name: '', email: '', role: '' as StaffRole, department: '' as Stage, station: '' })
   const [inviting, setInviting] = useState(false); const [invMsg, setInvMsg] = useState<{ ok: boolean; txt: string; tempPass?: string } | null>(null)
   const [sSearch, setSSearch] = useState(''); const [sFilter, setSFilter] = useState('all')
   const [stats, setStats] = useState<DashboardStats | null>(null)
@@ -103,10 +101,11 @@ export default function App() {
     if (!n) return
     try {
       await queueService.callPatientToConsult(n.id, n.queue_number, dept)
-      if (currentStaff?.id) await queueService.assignPatientToStaff(n.id, currentStaff.id)
+      const target = await queueService.getLeastLoadedStaff(dept)
+      if (target?.id) await queueService.assignPatientToStaff(n.id, target.id)
       setServing(n); beep(); fetchQueue()
     } catch { /* */ }
-  }, [dq, dept, fetchQueue, currentStaff])
+  }, [dq, dept, fetchQueue])
 
   const markServed = useCallback(async () => { if (!serving) return; try { await queueService.markAsServed(serving.id); setServed(c => c + 1); setServing(null); fetchQueue() } catch { /* */ } }, [serving, fetchQueue])
   const toggleEmg = useCallback(async (id: string, cur: QPri) => { try { await queueService.updatePatientPriority(id, cur === 'emergency' ? 'normal' : 'emergency'); fetchQueue() } catch { /* */ } }, [fetchQueue])
@@ -118,7 +117,7 @@ export default function App() {
   const toggleAll = useCallback(() => setSel(p => p.size === filtered.length ? new Set() : new Set(filtered.map(e => e.id))), [filtered])
 
   const sendInvite = useCallback(async () => {
-    if (!form.name || !form.email || !form.station.trim()) return
+    if (!form.name.trim() || !form.email.trim() || !form.role || !form.department || !form.station.trim()) return
     if (inviting) return
     setInviting(true); setInvMsg(null)
     try {
@@ -127,7 +126,7 @@ export default function App() {
         department: form.department, station: form.station || undefined,
       })
       setInvMsg({ ok: true, txt: `${form.name} has been invited.`, tempPass: result.tempPassword })
-      setForm({ name: '', email: '', role: 'nurse', department: 'OPD', station: '' })
+      setForm({ name: '', email: '', role: '' as StaffRole, department: '' as Stage, station: '' })
       fetchStaff()
     } catch (err: unknown) {
       setInvMsg({ ok: false, txt: err instanceof Error ? err.message : 'Failed to invite staff.' })
@@ -148,15 +147,14 @@ export default function App() {
           ))}
         </div>
         <div className="ad-header-right">
-          <button className={`ad-pause${paused ? ' paused' : ''}`} onClick={() => setPaused(p => !p)}>{paused ? <><Play size={14} /> Resume</> : <><Pause size={14} /> Pause</>}</button>
-          <button className="ad-signout" onClick={() => setConfirmSignOut(true)}><LogOut size={16} /></button>
+          <button className="ad-signout" onClick={() => setConfirmSignOut(true)}><LogOut size={16} /> Logout</button>
         </div>
       </header>
 
       {tab === 'queue' && (
         <div className="ad-body">
           <div className="ad-main">
-            <div className="ad-row"><h1 className="ad-page-title">Queue Management — {DEPT_LABELS[dept]}</h1>{paused && <span className="ad-paused-badge">⏸ Paused</span>}</div>
+            <div className="ad-row"><h1 className="ad-page-title">Queue Management — {DEPT_LABELS[dept]}</h1></div>
 
             <div className="ad-kpis">
               {[
@@ -178,7 +176,7 @@ export default function App() {
               <button onClick={() => exportCSV(dq, dept)}><Download size={14} /> Export</button>
             </div>
 
-            <button className="ad-call-btn" onClick={callNext} disabled={paused || wDept.length === 0}><Phone size={18} /> Call Next Patient</button>
+            <button className="ad-call-btn" onClick={callNext} disabled={wDept.length === 0}><Phone size={18} /> Call Next Patient</button>
 
             {serving && (
               <motion.div className="ad-serving" initial={{ opacity: 0, y: -8 }} animate={{ opacity: 1, y: 0 }}>
@@ -200,7 +198,7 @@ export default function App() {
             <div className="ad-table-wrap">
               <table className="ad-table"><thead><tr><th><input type="checkbox" checked={sel.size === filtered.length && filtered.length > 0} onChange={toggleAll} /></th><th>Pos</th><th>Patient</th><th>#</th><th>Status</th><th>Priority</th><th>Wait</th><th>Assigned</th><th></th></tr></thead>
                 <tbody>{filtered.map(e => {
-                  const assignedStaff = staff.find(s => s.id === (e as any).assigned_to)
+                  const assignedStaff = staff.find(s => s.id === e.assigned_to)
                   return (
                     <tr key={e.id} className={`${sel.has(e.id) ? 'selected' : ''}${e.priority === 'emergency' ? ' emergency' : ''}`} onClick={() => setModal(e)}>
                       <td onClick={ev => ev.stopPropagation()}><input type="checkbox" checked={sel.has(e.id)} onChange={() => toggleSel(e.id)} /></td>
@@ -208,7 +206,7 @@ export default function App() {
                       <td><span className={`ad-badge ${sCls(e.status)}`}>{sLabel(e.status)}</span></td>
                       <td><span className={`ad-badge ${pCls(e.priority)}`}>{e.priority === 'emergency' && <Zap size={9} />}{e.priority}</span></td>
                       <td><span className={e.wait_time_minutes > 40 ? 'ad-wait-danger' : e.wait_time_minutes > 20 ? 'ad-wait-warn' : 'ad-wait-ok'}>{Math.round(e.wait_time_minutes)}m</span></td>
-                      <td><span className="ad-assigned-to">{assignedStaff ? ini(assignedStaff.name) : '—'}</span></td>
+                      <td><span className="ad-assigned-to">{assignedStaff ? assignedStaff.name : '—'}</span></td>
                       <td onClick={ev => ev.stopPropagation()}><button className="ad-icon-btn" onClick={() => toggleEmg(e.id, e.priority)} title="Toggle emergency"><Zap size={12} /></button></td>
                     </tr>
                   )
@@ -257,7 +255,7 @@ export default function App() {
             <div className="ad-modal-body">
               <div className="ad-detail-grid">{[['Name', modal.full_name], ['Queue #', `#${modal.queue_number}`], ['Position', String(modal.position)], ['Department', DEPT_LABELS[modal.department]], ['Status', sLabel(modal.status)], ['Priority', modal.priority], ['Wait', `${Math.round(modal.wait_time_minutes)} min`], ['Arrived', modal.arrived_at]].map(([l, v]) => <div key={l}><span>{l}</span><strong>{v}</strong></div>)}</div>
               <div className="ad-modal-actions">
-                <button className="ad-btn-green" onClick={async () => { try { await queueService.callPatientToConsult(modal.id, modal.queue_number, dept); if (currentStaff?.id) await queueService.assignPatientToStaff(modal.id, currentStaff.id); setServing(modal); beep() } catch { /* */ } setModal(null); fetchQueue() }}><Phone size={14} /> Call to Consult</button>
+                <button className="ad-btn-green" onClick={async () => { try { await queueService.callPatientToConsult(modal.id, modal.queue_number, dept); const target = await queueService.getLeastLoadedStaff(dept); if (target?.id) await queueService.assignPatientToStaff(modal.id, target.id); setServing(modal); beep() } catch { /* */ } setModal(null); fetchQueue() }}><Phone size={14} /> Call to Consult</button>
                 <button className="ad-btn-amber" onClick={async () => { await toggleEmg(modal.id, modal.priority); setModal(null) }}><Zap size={14} /> {modal.priority === 'emergency' ? 'Remove Emergency' : 'Set Emergency'}</button>
                 {modal.status !== 'done' && <button className="ad-btn-red" onClick={async () => { try { await queueService.markAsServed(modal.id); setServed(c => c + 1) } catch { /* */ } setModal(null); fetchQueue() }}><Check size={14} /> Mark Served</button>}
               </div>
@@ -284,15 +282,15 @@ export default function App() {
                   )}
                 </div>
               )}
-              <div className="ad-field"><label>Full Name</label><input value={form.name} onChange={e => setForm(f => ({ ...f, name: e.target.value }))} placeholder="Jane Smith" /></div>
-              <div className="ad-field"><label>Email</label><input type="email" value={form.email} onChange={e => setForm(f => ({ ...f, email: e.target.value }))} placeholder="jane@hospital.com" /></div>
+              <div className="ad-field"><label>Full Name <span className="ad-field-req">*</span></label><input value={form.name} onChange={e => setForm(f => ({ ...f, name: e.target.value }))} placeholder="Jane Smith" /></div>
+              <div className="ad-field"><label>Email <span className="ad-field-req">*</span></label><input type="email" value={form.email} onChange={e => setForm(f => ({ ...f, email: e.target.value }))} placeholder="jane@hospital.com" /></div>
               <div className="ad-field-row">
-                <div className="ad-field"><label>Role</label><select value={form.role} onChange={e => setForm(f => ({ ...f, role: e.target.value as StaffRole }))}>{ALL_ROLES.map(r => <option key={r} value={r}>{r.replace('_', ' ')}</option>)}</select></div>
-                <div className="ad-field"><label>Department</label><select value={form.department} onChange={e => setForm(f => ({ ...f, department: e.target.value as Stage }))}>{STAGES.map(s => <option key={s} value={s}>{DEPT_LABELS[s]}</option>)}</select></div>
+                <div className="ad-field"><label>Role <span className="ad-field-req">*</span></label><select value={form.role} onChange={e => setForm(f => ({ ...f, role: e.target.value as StaffRole }))}><option value="">Select role…</option>{ALL_ROLES.map(r => <option key={r} value={r}>{r.replace('_', ' ')}</option>)}</select></div>
+                <div className="ad-field"><label>Department <span className="ad-field-req">*</span></label><select value={form.department} onChange={e => setForm(f => ({ ...f, department: e.target.value as Stage }))}><option value="">Select department…</option>{STAGES.map(s => <option key={s} value={s}>{DEPT_LABELS[s]}</option>)}</select></div>
               </div>
               <div className="ad-field"><label>Station <span className="ad-field-req">*</span></label><input value={form.station} onChange={e => setForm(f => ({ ...f, station: e.target.value }))} placeholder="e.g. Consult Room 3, Ground Floor, East Wing" /></div>
             </div>
-            <div className="ad-modal-footer"><button onClick={() => setInvite(false)}>Cancel</button><button className="ad-btn-primary" onClick={sendInvite} disabled={inviting || !form.name || !form.email || !form.station.trim()}>{inviting ? 'Sending...' : 'Send Invitation'}</button></div>
+            <div className="ad-modal-footer"><button onClick={() => setInvite(false)}>Cancel</button><button className="ad-btn-primary" onClick={sendInvite} disabled={inviting || !form.name.trim() || !form.email.trim() || !form.role || !form.department || !form.station.trim()}>{inviting ? 'Sending...' : 'Send Invitation'}</button></div>
           </motion.div>
         </div>
       )}

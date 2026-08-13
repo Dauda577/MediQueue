@@ -95,7 +95,7 @@ export const queueService = {
   ): Promise<QueueEntry[]> {
     const { data, error } = await supabase
       .from('patients')
-      .select('id, token_id, full_name, queue_number, current_stage, status, priority, position, checked_in_at')
+      .select('id, token_id, full_name, queue_number, current_stage, status, priority, position, checked_in_at, assigned_to')
       .eq('current_stage', department)
       .eq('status', 'waiting')
       .gte('checked_in_at', expiryFloor())
@@ -143,7 +143,7 @@ export const queueService = {
   ): Promise<QueueEntry> {
     const { data, error } = await supabase
       .from('patients')
-      .select('id, token_id, full_name, queue_number, current_stage, status, priority, position, checked_in_at')
+      .select('id, token_id, full_name, queue_number, current_stage, status, priority, position, checked_in_at, assigned_to')
       .eq('current_stage', department)
       .eq('status', 'waiting')
       .gte('checked_in_at', expiryFloor())
@@ -212,6 +212,25 @@ export const queueService = {
 
     if (error) throw error
     return data
+  },
+
+  async getLeastLoadedStaff(department: Department): Promise<StaffMember | null> {
+    const active = await this.getStaffByDepartment(department)
+    if (active.length === 0) return null
+    const ids = active.map(s => s.id)
+    const { data, error } = await supabase
+      .from('patients')
+      .select('assigned_to')
+      .in('assigned_to', ids)
+      .not('status', 'in', '("done","cancelled")')
+      .gte('checked_in_at', expiryFloor())
+
+    if (error) throw error
+    const loads = new Map<string, number>()
+    data?.forEach((r) => {
+      if (r.assigned_to) loads.set(r.assigned_to, (loads.get(r.assigned_to) || 0) + 1)
+    })
+    return [...active].sort((a, b) => (loads.get(a.id) || 0) - (loads.get(b.id) || 0))[0]
   },
 
   async assignPatientToStaff(patientId: string, staffId: string): Promise<void> {

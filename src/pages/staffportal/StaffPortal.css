@@ -1,4 +1,4 @@
-.sp-page { min-height: 100vh; background: #f0faf7; font-family: 'Inter', system-ui, sans-serif; }
+.sp-page { min-height: 100vh; background: linear-gradient(180deg, rgba(232,245,241,0.88) 0%, rgba(240,250,247,0.92) 60%), url(../../assets/auth-backdrop.webp) center/cover no-repeat; font-family: 'Geist Sans', system-ui, sans-serif; }
 .sp-loading { display: flex; align-items: center; justify-content: center; min-height: 100vh; color: #5C7A82; }
 .sp-header { background: #fff; border-bottom: 1px solid #D8EFE8; display: flex; align-items: center; justify-content: space-between; padding: 12px 20px; position: sticky; top: 0; z-index: 50; }
 .sp-header-left { display: flex; align-items: center; gap: 10px; }
@@ -9,7 +9,7 @@
 .sp-clock { text-align: right; }
 .sp-clock-time { display: block; font-size: 0.875rem; font-weight: 700; color: #1A2E33; font-variant-numeric: tabular-nums; }
 .sp-clock-date { font-size: 0.75rem; color: #6B8A93; }
-.sp-signout-btn { width: 38px; height: 38px; border-radius: 10px; display: flex; align-items: center; justify-content: center; background: #E8F4F0; color: #5C7A82; border: none; cursor: pointer; }
+.sp-signout-btn { display: flex; align-items: center; gap: 6px; padding: 6px 12px; border-radius: 10px; font-size: 0.75rem; font-weight: 600; background: #E8F4F0; color: #5C7A82; border: none; cursor: pointer; }
 .sp-signout-btn:hover { background: #FFE8E6; color: #E8453C; }
 .sp-announce { background: linear-gradient(135deg, #05668D, #00A896); color: #fff; text-align: center; padding: 12px 20px; font-size: 0.9375rem; font-weight: 600; }
 .sp-error { background: #FDF1F0; color: #E8453C; display: flex; align-items: center; justify-content: center; gap: 8px; padding: 12px 20px; font-size: 0.9rem; font-weight: 600; border-bottom: 1px solid #F5C6C3; }
